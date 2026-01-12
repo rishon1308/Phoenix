@@ -1,0 +1,1354 @@
+about-us
+
+.about-container {
+  background-color: #ab3434; /* Matches React background */
+  padding: 2rem;
+  color: white;
+}
+
+.grid-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.grid-item {
+  flex: 1;
+  min-width: 300px;
+}
+
+.image-container img {
+  width: 100%;
+  height: 400px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.text-container {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.about-title {
+  font-family: "Cormorant", serif;
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.about-text {
+  font-family: "Cormorant", serif;
+  font-size: 1.2rem;
+  line-height: 1.6;
+}
+
+
+<div class="about-container">
+  <div class="grid-container">
+    <div class="grid-item image-container">
+      <img
+        src="https://images.pexels.com/photos/1581384/pexels-photo-1581384.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2"
+        alt="Restaurant"
+      />
+    </div>
+
+    <div class="grid-item text-container">
+      <h2 class="about-title">About Us</h2>
+      <p class="about-text">
+        We are passionate about providing our customers with the highest quality
+        food and exceptional service. Our menu features a variety of dishes to
+        satisfy every palate. We use only the freshest ingredients to create
+        delicious and flavorful meals.
+      </p>
+    </div>
+  </div>
+</div>
+
+=============================================================================================
+
+admin
+
+.admin-container {
+  padding: 3rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page-title {
+  text-align: center;
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+  font-family: "Roboto", "Helvetica", "Arial", sans-serif;
+  font-size: 2.125rem;
+}
+
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+/* Grid Layout (Same as React sm={6}) */
+.menu-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+@media (min-width: 600px) {
+  .menu-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Card Styling */
+.admin-card {
+  padding: 16px;
+  border-radius: 4px;
+  box-shadow: 0px 3px 5px -1px rgba(0, 0, 0, 0.2),
+    0px 6px 10px 0px rgba(0, 0, 0, 0.14), 0px 1px 18px 0px rgba(0, 0, 0, 0.12);
+  background-color: white;
+  display: block;
+}
+
+.card-content-wrapper {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.image-box {
+  width: 100px;
+  height: 100px;
+  min-width: 100px;
+  overflow: hidden;
+  border-radius: 8px;
+  margin-right: 16px;
+  flex-shrink: 0;
+}
+
+.image-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.text-info {
+  flex-grow: 1;
+}
+
+.food-name {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.food-price {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-update {
+  background-color: #1976d2 !important;
+  color: white !important;
+  margin-right: 8px;
+}
+
+/* --- FORM LAYOUT FIXES --- */
+
+/* Wrapper to force React-like dimensions */
+.dialog-box {
+  width: 350px;
+  padding-top: 10px; /* Space for label notch */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Inputs fill the dialog box */
+.full-width {
+  width: 100%;
+  margin-bottom: 12px;
+  display: block;
+}
+
+
+<div class="admin-container">
+  <h2 class="page-title">Admin Dashboard</h2>
+
+  <div class="action-buttons">
+    <button mat-raised-button color="primary" (click)="openAddAdmin()">
+      Add Admin
+    </button>
+    <button mat-raised-button color="accent" (click)="openAddItem()">
+      Add Item
+    </button>
+  </div>
+
+  <div class="menu-grid">
+    <mat-card *ngFor="let item of menuItems" class="admin-card">
+      <div class="card-content-wrapper">
+        <div class="image-box">
+          <img
+            [src]="item.imageUrl"
+            [alt]="item.foodName"
+            (error)="
+              item.imageUrl =
+                'https://upload.wikimedia.org/wikipedia/commons/a/a3/Image-not-found.png'
+            "
+          />
+        </div>
+        <div class="text-info">
+          <h3 class="food-name">{{ item.foodName }}</h3>
+          <p class="food-price">₹{{ item.foodPrice.toFixed(2) }}</p>
+        </div>
+      </div>
+      <div class="card-actions">
+        <button
+          mat-raised-button
+          color="primary"
+          class="btn-update"
+          (click)="openUpdateItem(item)"
+        >
+          Update
+        </button>
+        <button mat-raised-button color="warn" (click)="deleteItem(item.id)">
+          Delete
+        </button>
+      </div>
+    </mat-card>
+  </div>
+</div>
+
+<ng-template #addAdminDialog>
+  <h2 mat-dialog-title>Add Admin</h2>
+  <mat-dialog-content>
+    <div class="dialog-box">
+      <mat-form-field
+        appearance="outline"
+        class="full-width"
+        subscriptSizing="dynamic"
+      >
+        <mat-label>Username</mat-label>
+        <input matInput [(ngModel)]="newAdmin.username" />
+        <mat-hint *ngIf="adminErrors.username" style="color: red">
+          {{ adminErrors.username }}
+        </mat-hint>
+      </mat-form-field>
+
+      <mat-form-field
+        appearance="outline"
+        class="full-width"
+        subscriptSizing="dynamic"
+      >
+        <mat-label>Password</mat-label>
+        <input matInput type="password" [(ngModel)]="newAdmin.password" />
+        <mat-hint *ngIf="adminErrors.password" style="color: red">
+          {{ adminErrors.password }}
+        </mat-hint>
+      </mat-form-field>
+    </div>
+  </mat-dialog-content>
+  <mat-dialog-actions align="end">
+    <button mat-button mat-dialog-close>Cancel</button>
+    <button mat-raised-button color="primary" (click)="submitAddAdmin()">
+      Submit
+    </button>
+  </mat-dialog-actions>
+</ng-template>
+
+<ng-template #addItemDialog>
+  <h2 mat-dialog-title>Add Menu Item</h2>
+  <mat-dialog-content>
+    <div class="dialog-box">
+      <mat-form-field
+        appearance="outline"
+        class="full-width"
+        subscriptSizing="dynamic"
+      >
+        <mat-label>Food Name</mat-label>
+        <input matInput [(ngModel)]="newItem.foodName" />
+        <mat-hint *ngIf="addItemErrors.foodName" style="color: red">
+          {{ addItemErrors.foodName }}
+        </mat-hint>
+      </mat-form-field>
+
+      <mat-form-field
+        appearance="outline"
+        class="full-width"
+        subscriptSizing="dynamic"
+      >
+        <mat-label>Food Price</mat-label>
+        <input matInput type="number" [(ngModel)]="newItem.foodPrice" />
+        <mat-hint *ngIf="addItemErrors.foodPrice" style="color: red">
+          {{ addItemErrors.foodPrice }}
+        </mat-hint>
+      </mat-form-field>
+    </div>
+  </mat-dialog-content>
+  <mat-dialog-actions align="end">
+    <button mat-button mat-dialog-close>Cancel</button>
+    <button mat-raised-button color="accent" (click)="submitAddItem()">
+      Submit
+    </button>
+  </mat-dialog-actions>
+</ng-template>
+
+<ng-template #updateItemDialog>
+  <h2 mat-dialog-title>Update Menu Item</h2>
+  <mat-dialog-content>
+    <div class="dialog-box">
+      <mat-form-field
+        appearance="outline"
+        class="full-width"
+        subscriptSizing="dynamic"
+      >
+        <mat-label>Food Name</mat-label>
+        <input matInput [(ngModel)]="selectedItem.foodName" />
+        <mat-hint *ngIf="updateItemErrors.foodName" style="color: red">
+          {{ updateItemErrors.foodName }}
+        </mat-hint>
+      </mat-form-field>
+
+      <mat-form-field
+        appearance="outline"
+        class="full-width"
+        subscriptSizing="dynamic"
+      >
+        <mat-label>Food Price</mat-label>
+        <input matInput type="number" [(ngModel)]="selectedItem.foodPrice" />
+        <mat-hint *ngIf="updateItemErrors.foodPrice" style="color: red">
+          {{ updateItemErrors.foodPrice }}
+        </mat-hint>
+      </mat-form-field>
+    </div>
+  </mat-dialog-content>
+  <mat-dialog-actions align="end">
+    <button mat-button mat-dialog-close>Cancel</button>
+    <button mat-raised-button color="primary" (click)="submitUpdateItem()">
+      Submit
+    </button>
+  </mat-dialog-actions>
+</ng-template>
+
+
+==========================================================================================
+
+all-orders
+
+.orders-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3rem;
+  background-color: #f5f5f5;
+  min-height: 100vh;
+}
+
+.page-title {
+  font-weight: bold;
+  color: #ab3434;
+  margin-bottom: 2rem;
+  font-size: 1.8rem;
+}
+
+.spinner-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.orders-list {
+  width: 100%;
+  max-width: 600px; /* Slightly wider for admin view */
+}
+
+.order-card {
+  margin-bottom: 24px;
+  padding: 16px;
+  border-left: 5px solid #ab3434; /* Accent border */
+}
+
+.order-id {
+  color: #ab3434;
+  font-weight: bold;
+}
+
+.customer-info {
+  margin-top: 5px;
+  color: #333;
+  line-height: 1.4;
+}
+
+.items-title {
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: #666;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 10px;
+}
+
+.total-price {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #2c3e50;
+}
+
+
+<div class="orders-container">
+  <h2 class="page-title">Admin: All Customer Orders</h2>
+
+  <div *ngIf="loading" class="spinner-container">
+    <mat-spinner diameter="50" color="warn"></mat-spinner>
+  </div>
+
+  <p *ngIf="errorMsg" class="error-text">{{ errorMsg }}</p>
+
+  <p *ngIf="!loading && orders.length === 0" style="text-align: center">
+    No orders found in the system.
+  </p>
+
+  <div class="orders-list">
+    <mat-card *ngFor="let order of orders" class="order-card" elevation="4">
+      <mat-card-header>
+        <mat-card-title class="order-id">Order #{{ order.id }}</mat-card-title>
+        <mat-card-subtitle class="customer-info">
+          <strong>{{ order.customerName }}</strong
+          ><br />
+          {{ order.customerPhoneNumber }}<br />
+          {{ order.customerAddress }}
+        </mat-card-subtitle>
+      </mat-card-header>
+
+      <mat-card-content>
+        <mat-divider style="margin: 10px 0"></mat-divider>
+        <h3 class="items-title">Items:</h3>
+
+        <mat-list dense>
+          <mat-list-item *ngFor="let item of getGroupedItems(order.orderItems)">
+            <span matListItemTitle>{{ item.name }} (x{{ item.qty }})</span>
+            <span matListItemLine
+              >₹{{ (item.qty * item.price).toFixed(2) }}</span
+            >
+          </mat-list-item>
+        </mat-list>
+
+        <mat-divider style="margin: 10px 0"></mat-divider>
+      </mat-card-content>
+
+      <mat-card-actions class="card-actions">
+        <span class="total-price"
+          >Total: ₹{{ order.totalPrice.toFixed(2) }}</span
+        >
+        <button mat-raised-button color="warn" (click)="deleteOrder(order.id)">
+          Delete Order
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+</div>
+
+===================================================================================
+
+common-footer
+
+<footer class="footer">
+  <div class="footer-content">
+    <p>© {{ currentYear }} Gourmet Heaven. All Rights Reserved.</p>
+    <p>Terms and Conditions Apply.</p>
+  </div>
+</footer>
+
+=======================================================================================
+
+common-login
+
+<div class="login-container">
+  <mat-card class="login-card" elevation="24">
+    <h2>Login</h2>
+    <h3 style="color: #ab3434; font-family: arial">
+      Welcome to Gourmet Heaven
+    </h3>
+
+    <p *ngIf="errorMsg" style="color: red">{{ errorMsg }}</p>
+
+    <form (ngSubmit)="onLogin()">
+      <mat-form-field appearance="outline" style="width: 100%">
+        <mat-label>Username</mat-label>
+        <input matInput [(ngModel)]="user.username" name="username" required />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" style="width: 100%">
+        <mat-label>Password</mat-label>
+        <input
+          matInput
+          type="password"
+          [(ngModel)]="user.password"
+          name="password"
+          required
+        />
+      </mat-form-field>
+
+      <button mat-raised-button class="btn-custom" type="submit">Login</button>
+    </form>
+
+    <p style="margin-top: 15px">
+      Don't have an account?
+      <a routerLink="/register" style="color: #ab3434">Register</a>
+    </p>
+  </mat-card>
+</div>
+
+=======================================================================
+
+common-navbar
+
+.navbar-custom {
+  background-color: #ab3434 !important; /* Matches your React Theme */
+  color: white;
+  position: fixed;
+  top: 0;
+  z-index: 1000;
+  width: 100%;
+}
+
+.logo {
+  font-family: "Cormorant", serif;
+  font-style: italic;
+  font-size: 1.5rem;
+  cursor: pointer;
+  letter-spacing: 1px;
+  margin-left: 1rem;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.desktop-menu button {
+  border: 1px solid white;
+  margin-left: 10px;
+  color: white;
+}
+
+/* Mobile Drawer Styles */
+.mobile-drawer {
+  position: fixed;
+  top: 64px; /* Height of toolbar */
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+.drawer-content {
+  background-color: white;
+  width: 200px;
+  height: 100%;
+  color: #ab3434;
+}
+
+
+<mat-toolbar color="primary" class="navbar-custom">
+  <button mat-icon-button *ngIf="isMobile" (click)="toggleDrawer()">
+    <mat-icon>menu</mat-icon>
+  </button>
+
+  <span class="logo" routerLink="/">Gourmet Heaven</span>
+
+  <span class="spacer"></span>
+
+  <div *ngIf="!isMobile" class="desktop-menu">
+    <button mat-button routerLink="/menu">Menu</button>
+
+    <ng-container *ngIf="authService.isLoggedIn(); else guestUser">
+      <ng-container *ngIf="authService.getRole() === 'ROLE_CUSTOMER'">
+        <button mat-button routerLink="/my-orders">My Orders</button>
+      </ng-container>
+
+      <ng-container *ngIf="authService.getRole() === 'ROLE_ADMIN'">
+        <button mat-button routerLink="/all-orders">Orders</button>
+        <button mat-button routerLink="/admin">Admin</button>
+      </ng-container>
+
+      <button mat-button (click)="handleLogout()">Logout</button>
+    </ng-container>
+
+    <ng-template #guestUser>
+      <button mat-button routerLink="/login">Login</button>
+    </ng-template>
+  </div>
+</mat-toolbar>
+
+<div
+  class="mobile-drawer"
+  *ngIf="isMobile && isDrawerOpen"
+  (click)="toggleDrawer()"
+>
+  <mat-list
+    role="list"
+    (click)="$event.stopPropagation()"
+    class="drawer-content"
+  >
+    <mat-list-item role="listitem" routerLink="/menu" (click)="toggleDrawer()"
+      >Menu</mat-list-item
+    >
+
+    <ng-container *ngIf="authService.isLoggedIn()">
+      <ng-container *ngIf="authService.getRole() === 'ROLE_CUSTOMER'">
+        <mat-list-item
+          role="listitem"
+          routerLink="/my-orders"
+          (click)="toggleDrawer()"
+          >My Orders</mat-list-item
+        >
+      </ng-container>
+
+      <ng-container *ngIf="authService.getRole() === 'ROLE_ADMIN'">
+        <mat-list-item
+          role="listitem"
+          routerLink="/all-orders"
+          (click)="toggleDrawer()"
+          >Orders</mat-list-item
+        >
+        <mat-list-item
+          role="listitem"
+          routerLink="/admin"
+          (click)="toggleDrawer()"
+          >Admin</mat-list-item
+        >
+      </ng-container>
+
+      <mat-list-item role="listitem" (click)="handleLogout(); toggleDrawer()"
+        >Logout</mat-list-item
+      >
+    </ng-container>
+
+    <ng-container *ngIf="!authService.isLoggedIn()">
+      <mat-list-item
+        role="listitem"
+        routerLink="/login"
+        (click)="toggleDrawer()"
+        >Login</mat-list-item
+      >
+    </ng-container>
+  </mat-list>
+</div>
+
+============================================================================================
+
+common-register
+
+<div class="register-container">
+  <mat-card class="register-card" elevation="24">
+    <h2>Register</h2>
+    <h3 style="color: #ab3434; font-family: arial">Join Gourmet Heaven</h3>
+
+    <p *ngIf="errorMsg" style="color: red; font-size: 0.9rem">{{ errorMsg }}</p>
+
+    <form (ngSubmit)="onRegister()">
+      <mat-form-field appearance="outline" style="width: 100%">
+        <mat-label>Username</mat-label>
+        <input matInput [(ngModel)]="user.username" name="username" required />
+        <mat-hint *ngIf="validationErrors.username" style="color: red">
+          {{ validationErrors.username }}
+        </mat-hint>
+      </mat-form-field>
+
+      <mat-form-field
+        appearance="outline"
+        style="width: 100%; margin-top: 10px"
+      >
+        <mat-label>Password</mat-label>
+        <input
+          matInput
+          type="password"
+          [(ngModel)]="user.password"
+          name="password"
+          required
+        />
+        <mat-hint *ngIf="validationErrors.password" style="color: red">
+          {{ validationErrors.password }}
+        </mat-hint>
+      </mat-form-field>
+
+      <button mat-raised-button class="btn-custom" type="submit">
+        Register
+      </button>
+    </form>
+
+    <p style="margin-top: 15px">
+      Already have an account?
+      <a routerLink="/login" style="color: #ab3434">Sign In</a>
+    </p>
+  </mat-card>
+</div>
+
+==============================================================================
+
+home-body
+
+.hero-container {
+  background-image: url("https://espacendesign.com/wp-content/uploads/2024/09/Restaurant-interior-designer-low-budget-1-scaled.webp");
+  background-size: cover;
+  background-position: center;
+  min-height: 85vh;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1;
+}
+
+.content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  color: white;
+  padding: 0 20px;
+}
+
+.hero-title {
+  font-family: "Cormorant", serif;
+  font-weight: 700;
+  font-style: italic;
+  font-size: 8vh; /* Responsive font sizing */
+  margin-bottom: 1rem;
+}
+
+.hero-subtitle {
+  font-size: 1.5rem;
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+  .hero-title {
+    font-size: 5vh;
+  }
+}
+
+
+<div class="hero-container">
+  <div class="overlay"></div>
+  <div class="content">
+    <h1 class="hero-title">Welcome to Gourmet Heaven</h1>
+    <p class="hero-subtitle">
+      Your friendly neighbourhood restaurant serving delicious food.
+    </p>
+  </div>
+</div>
+
+
+=========================================================================
+
+home-menu
+
+.section-container {
+  padding: 2rem;
+  background-color: white;
+}
+
+.section-title {
+  text-align: center;
+  font-family: "Cormorant", serif;
+  font-size: 2.5rem;
+  margin-bottom: 2rem;
+}
+
+.menu-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  cursor: pointer;
+}
+
+.menu-card {
+  width: 350px;
+  display: flex;
+  flex-direction: row; /* Horizontal card like React version */
+  align-items: center;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 3px 5px 8px rgba(0, 0, 0, 0.2);
+}
+
+.food-image {
+  width: 150px;
+  height: 150px;
+  object-fit: cover;
+}
+
+.card-content {
+  padding: 1rem;
+}
+
+.card-content h3 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.button-container {
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.btn-full-menu {
+  background-color: #ab3434;
+  color: white;
+  padding: 0.5rem 2rem;
+}
+
+
+<div class="section-container">
+  <h2 class="section-title">Pick from variety of cuisines</h2>
+
+  <div class="menu-grid">
+    <mat-card
+      *ngFor="let item of menuItems"
+      class="menu-card"
+      routerLink="/menu"
+    >
+      <img [src]="item.imageUrl" [alt]="item.foodName" class="food-image" />
+      <div class="card-content">
+        <h3>{{ item.foodName }}</h3>
+        <p>₹{{ item.foodPrice }}.00</p>
+      </div>
+    </mat-card>
+  </div>
+
+  <div class="button-container">
+    <button mat-raised-button class="btn-full-menu" routerLink="/menu">
+      View Full Menu
+    </button>
+  </div>
+</div>
+
+
+===================================================================================================
+
+menu
+
+.menu-container {
+  padding: 2rem;
+  background-color: #fff;
+}
+
+.page-title {
+  text-align: center;
+  margin: 2rem;
+  font-family: "Cormorant", serif;
+  font-size: 2.5rem;
+  color: #ab3434;
+}
+
+/* --- GRID LAYOUT UPDATE --- */
+/* Matches React Grid: xs={12} md={6} */
+.menu-grid {
+  display: grid;
+  grid-template-columns: 1fr; /* Default: 1 column for mobile */
+  gap: 24px; /* Matches React spacing={3} */
+  margin-bottom: 2rem;
+}
+
+/* On Desktop (approx 900px+), force exactly 2 columns */
+@media (min-width: 900px) {
+  .menu-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* --- CARD STYLE UPDATE --- */
+/* Matches React Card: display: 'flex', flexDirection: 'row' */
+.menu-card {
+  display: flex;
+  flex-direction: row; /* Horizontal layout */
+  align-items: center;
+  border: 1px solid #ab3434;
+  box-shadow: 3px 5px 5px #d9d7b6;
+  width: 100%;
+  padding: 0; /* Remove padding so image touches edge */
+  overflow: hidden;
+}
+
+/* Matches React CardMedia: width: 150, height: 150 */
+.food-image {
+  width: 150px;
+  height: 150px;
+  object-fit: cover;
+  flex-shrink: 0; /* Prevent image from shrinking */
+}
+
+/* Content area next to the image */
+.mat-mdc-card-content {
+  padding: 16px;
+  flex-grow: 1;
+}
+
+.food-name {
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 1.25rem;
+  font-weight: bold;
+}
+
+.food-price {
+  color: #666;
+  margin-bottom: 10px;
+}
+
+.cart-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start; /* Align left to match horizontal card */
+  margin-top: 10px;
+}
+
+.quantity {
+  margin: 0 15px;
+  font-size: 1.1rem;
+  font-weight: bold;
+}
+
+/* --- ORDER SECTION (Unchanged) --- */
+.order-section-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2rem;
+  margin-top: 3rem;
+}
+
+.order-card {
+  width: 380px;
+  padding: 20px;
+  border: 1px solid #ab3434;
+}
+
+.card-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #ab3434;
+  margin-bottom: 1rem;
+}
+
+.full-width {
+  width: 100%;
+  margin-bottom: 5px;
+}
+
+.btn-order {
+  background-color: #ab3434;
+  color: white;
+  width: 100%;
+  margin-top: 15px;
+  padding: 5px;
+}
+
+.cart-list {
+  padding-left: 0;
+  list-style: none;
+}
+
+.cart-list li {
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.25rem;
+}
+
+.total-price {
+  text-align: center;
+  margin-top: 1rem;
+  border-top: 2px solid #ab3434;
+  padding-top: 1rem;
+}
+
+
+<div class="menu-container">
+  <h2 class="page-title">Menu</h2>
+
+  <div class="menu-grid">
+    <mat-card *ngFor="let item of paginatedItems" class="menu-card">
+      <img
+        mat-card-image
+        [src]="item.imageUrl"
+        [alt]="item.foodName"
+        class="food-image"
+      />
+
+      <mat-card-content>
+        <h3 class="food-name">{{ item.foodName }}</h3>
+        <p class="food-price">Price: ₹{{ item.foodPrice.toFixed(2) }}</p>
+
+        <div class="cart-controls">
+          <button
+            mat-icon-button
+            color="warn"
+            (click)="removeFromCart(item)"
+            [disabled]="getCartQuantity(item.id) === 0"
+          >
+            <mat-icon>remove_circle_outline</mat-icon>
+          </button>
+
+          <span class="quantity">{{ getCartQuantity(item.id) }}</span>
+
+          <button
+            mat-icon-button
+            style="color: green"
+            (click)="addToCart(item)"
+            [disabled]="getCartQuantity(item.id) >= 5"
+          >
+            <mat-icon>add_circle_outline</mat-icon>
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <mat-paginator
+    [length]="menuItems.length"
+    [pageSize]="pageSize"
+    [pageSizeOptions]="[6, 12, 24]"
+    (page)="handlePageEvent($event)"
+    aria-label="Select page"
+  >
+  </mat-paginator>
+
+  <div class="order-section-container">
+    <mat-card class="order-card" elevation="12">
+      <div class="card-header">
+        <mat-icon>shopping_cart</mat-icon>
+        <h3>Cart</h3>
+      </div>
+
+      <ul class="cart-list">
+        <li *ngFor="let item of getCartList()">
+          {{ item.foodName }} - Qty: {{ item.qty }} - Price: ₹{{
+            (item.foodPrice! * item.qty).toFixed(2)
+          }}
+        </li>
+      </ul>
+      <p
+        *ngIf="getCartList().length === 0"
+        style="text-align: center; color: gray"
+      >
+        Cart is empty
+      </p>
+
+      <h3 class="total-price">Total: ₹{{ getCartTotal().toFixed(2) }}</h3>
+    </mat-card>
+
+    <mat-card class="order-card" elevation="12">
+      <div class="card-header">
+        <h3>Place Order</h3>
+      </div>
+
+      <form (ngSubmit)="placeOrder()">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Customer Name</mat-label>
+          <input
+            matInput
+            [(ngModel)]="customerName"
+            name="customerName"
+            required
+          />
+          <mat-hint *ngIf="validationErrors.customerName" style="color: red">
+            {{ validationErrors.customerName }}
+          </mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Phone Number</mat-label>
+          <input
+            matInput
+            [(ngModel)]="customerPhoneNumber"
+            name="customerPhoneNumber"
+            required
+          />
+          <mat-hint
+            *ngIf="validationErrors.customerPhoneNumber"
+            style="color: red"
+          >
+            {{ validationErrors.customerPhoneNumber }}
+          </mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Address</mat-label>
+          <input
+            matInput
+            [(ngModel)]="customerAddress"
+            name="customerAddress"
+            required
+          />
+          <mat-hint *ngIf="validationErrors.customerAddress" style="color: red">
+            {{ validationErrors.customerAddress }}
+          </mat-hint>
+        </mat-form-field>
+
+        <button mat-raised-button class="btn-order" type="submit">
+          Place Order
+        </button>
+      </form>
+    </mat-card>
+  </div>
+</div>
+<app-footer></app-footer>
+
+
+=========================================================================================
+
+my-orders
+
+/* Import a clean sans-serif font similar to Groww's (Roboto/Inter) */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
+:host {
+  font-family: 'Roboto', sans-serif;
+  color: #44475b; /* Groww's primary text color */
+}
+
+.orders-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3rem 1rem;
+  background-color: #f6f8fc; /* Light cool gray background */
+  min-height: 100vh;
+}
+
+.page-title {
+  font-weight: 700;
+  color: #44475b; /* Dark slate instead of red */
+  margin-bottom: 2.5rem;
+  font-size: 1.75rem;
+  text-align: center;
+}
+
+.spinner-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.error-text {
+  color: #eb5b3c; /* Softer red/orange for errors */
+  text-align: center;
+  background: #fff0f0;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.orders-list {
+  width: 100%;
+  max-width: 600px; /* Slightly wider for better card spacing */
+}
+
+.order-card {
+  margin-bottom: 24px;
+  padding: 24px;
+  border-radius: 20px; /* Groww uses highly rounded corners */
+  border: 1px solid #eef0f3; /* Subtle border */
+  background-color: #ffffff;
+  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.05); /* Soft, modern shadow */
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.order-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.1);
+}
+
+.mat-mdc-card-header {
+  padding: 0;
+  margin-bottom: 16px;
+}
+
+.order-id {
+  color: #00d09c; /* Groww's signature Green */
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.customer-name {
+  font-weight: 700;
+  color: #44475b;
+  font-size: 1.1rem;
+}
+
+.details {
+  color: #7c7e8c; /* Muted text color */
+  font-size: 0.9rem;
+  margin-top: 8px;
+  margin-bottom: 20px;
+  line-height: 1.5;
+  background-color: #f6f8fc;
+  padding: 12px;
+  border-radius: 12px;
+}
+
+.mat-divider {
+  border-top-color: #eef0f3;
+  margin: 16px 0;
+}
+
+.items-title {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #44475b;
+  margin-top: 16px;
+  margin-bottom: 12px;
+}
+
+/* List Item Styling */
+.mat-mdc-list-item {
+  height: auto !important;
+  margin-bottom: 8px;
+}
+
+.mat-mdc-list-item-title {
+  font-size: 0.95rem !important;
+  color: #44475b;
+  font-weight: 500;
+}
+
+.mat-mdc-list-item-line {
+  color: #7c7e8c !important;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 0 0 0;
+  margin-top: 10px;
+  border-top: 1px dashed #e0e0e0; /* Dashed line for totals often used in finance apps */
+}
+
+.total-price {
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: #44475b;
+}
+
+.btn-delete {
+  background-color: #fff;
+  color: #eb5b3c;
+  border: 1px solid #eb5b3c;
+  box-shadow: none;
+  font-weight: 500;
+  border-radius: 50px; /* Pill shape button */
+  padding: 0 24px;
+  line-height: 36px;
+  transition: all 0.2s;
+}
+
+.btn-delete:hover {
+  background-color: #eb5b3c;
+  color: white;
+  box-shadow: 0 4px 12px rgba(235, 91, 60, 0.2);
+}
+
+
+<div class="orders-container">
+  <h2 class="page-title">Order History</h2>
+
+  <div *ngIf="loading" class="spinner-container">
+    <mat-spinner diameter="50" color="warn"></mat-spinner>
+  </div>
+
+  <p *ngIf="errorMsg" class="error-text">{{ errorMsg }}</p>
+
+  <p
+    *ngIf="!loading && orders.length === 0 && !errorMsg"
+    style="text-align: center"
+  >
+    No orders found.
+  </p>
+
+  <div class="orders-list">
+    <mat-card *ngFor="let order of orders" class="order-card" elevation="3">
+      <mat-card-header>
+        <mat-card-title class="order-id"
+          >Order ID: {{ order.id }}</mat-card-title
+        >
+        <mat-card-subtitle class="customer-name"
+          >Customer: {{ order.customerName }}</mat-card-subtitle
+        >
+      </mat-card-header>
+
+      <mat-card-content>
+        <p class="details">
+          Phone: {{ order.customerPhoneNumber }} | Address:
+          {{ order.customerAddress }}
+        </p>
+
+        <mat-divider></mat-divider>
+
+        <h3 class="items-title">Order Items:</h3>
+        <mat-list dense>
+          <mat-list-item *ngFor="let item of getGroupedItems(order.orderItems)">
+            <span matListItemTitle>{{ item.name }} (x{{ item.qty }})</span>
+            <span matListItemLine
+              >₹{{ (item.qty * item.price).toFixed(2) }}</span
+            >
+          </mat-list-item>
+        </mat-list>
+
+        <mat-divider></mat-divider>
+      </mat-card-content>
+
+      <mat-card-actions class="card-actions">
+        <span class="total-price"
+          >Total: ₹{{ order.totalPrice.toFixed(2) }}</span
+        >
+        <button
+          mat-raised-button
+          class="btn-delete"
+          (click)="deleteOrder(order.id)"
+        >
+          Delete
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+</div>
+
+
+=================================================================================
+
+app.component.html
+
+<app-navbar></app-navbar>
+<div style="margin-top: 64px"><router-outlet></router-outlet></div>
+
+==================================================================================
