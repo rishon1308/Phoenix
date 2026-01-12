@@ -1,0 +1,3212 @@
+package com.gourmet.main;
+
+import java.util.Arrays;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+
+import com.gourmet.main.entities.MenuItem;
+import com.gourmet.main.entities.User;
+import com.gourmet.main.repository.MenuItemRepository;
+import com.gourmet.main.repository.UserRepository;
+
+@Component
+public class ApplicationDataLoader implements ApplicationRunner {
+
+//	@Autowired
+//	private CustomerOrderRepository customerOrderRepository;
+	
+	@Autowired
+	private MenuItemRepository menuItemRepository;
+	
+	@Autowired
+	private UserRepository userRepository;
+
+	@Autowired
+	private PasswordEncoder passwordEncoder;
+
+	@Override
+	public void run(ApplicationArguments args) throws Exception {
+		
+		if(menuItemRepository.count() == 0) {	
+		
+		MenuItem menu1 = new MenuItem("Chicken Burger", 250.00);
+		MenuItem menu2 = new MenuItem("Margarita Pizza", 480.00);
+		MenuItem menu3 = new MenuItem("Neapolitan Pizza", 660.00);
+		MenuItem menu4 = new MenuItem("Salad Bowl", 75.00);
+		MenuItem menu5 = new MenuItem("Sushi", 220.00);
+		MenuItem menu6 = new MenuItem("Chole Bhature", 100.00);
+		MenuItem menu7 = new MenuItem("Dounut", 80.00);
+		menuItemRepository.saveAll(Arrays.asList(menu1, menu2, menu3, menu4, menu5, menu6, menu7));
+		
+//		
+//		CustomerOrder order1 = new CustomerOrder("Aditya","7492919397", "Table 1", Arrays.asList(menu1, menu2), 13.00, customer);
+//		customerOrderRepository.save(order1);
+		}
+		
+		User admin = new User("Rishon", passwordEncoder.encode("1234"), "ROLE_ADMIN");
+		userRepository.save(admin);
+		
+		User customer = new User("Johnson", passwordEncoder.encode("1234"), "ROLE_CUSTOMER");
+		userRepository.save(customer);
+	}
+
+}
+
+
+====================================================================================
+
+package com.gourmet.main;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class RestaurantFoodOrderingApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(RestaurantFoodOrderingApplication.class, args);
+	}
+
+}
+
+
+=======================================================================================
+
+package com.gourmet.main.config;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+
+import com.gourmet.main.entities.User;
+
+public class CustomUserDetails implements UserDetails{
+
+	String name;
+	String password;
+	List<GrantedAuthority> authorities;
+	public CustomUserDetails(User user)
+	{
+		 name=user.getUsername();
+		 password=user.getPassword();
+		 authorities=Arrays.stream(user.getRoles().split(","))
+				.map(SimpleGrantedAuthority::new)
+				.collect(Collectors.toList());
+		
+	}
+	@Override
+	public Collection<? extends GrantedAuthority> getAuthorities() {
+		// TODO Auto-generated method stub
+		return authorities;
+	}
+
+	@Override
+	public String getPassword() {
+		// TODO Auto-generated method stub
+		return password;
+	}
+
+	@Override
+	public String getUsername() {
+		// TODO Auto-generated method stub
+		return name;
+	}
+	
+}
+
+
+====================================================================================
+
+package com.gourmet.main.config;
+
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
+
+import com.gourmet.main.entities.*;
+import com.gourmet.main.repository.UserRepository;
+
+//import com.cts.main.repository.UserRepository;
+
+@Component
+public class CustomUserDetailsService implements UserDetailsService {
+	@Autowired
+    private UserRepository userRepository;
+
+
+    @Override
+    public UserDetails loadUserByUsername(String usernameOrEmail) throws UsernameNotFoundException {
+        Optional<User> user = userRepository.findByUsername(usernameOrEmail);
+
+      return user.map(CustomUserDetails::new)
+    		  .orElseThrow(()-> new UsernameNotFoundException(usernameOrEmail+"User not Found"));
+    }
+}
+
+
+====================================================================================
+
+
+package com.gourmet.main.config;
+
+import com.gourmet.main.util.JwtUtil;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+
+@Component
+public class JwtFilter extends OncePerRequestFilter {
+
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    @Autowired
+    private UserDetailsService userDetailsService;
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+
+        String authHeader = request.getHeader("Authorization");
+        String token = null;
+        String username = null;
+
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+            try {
+                username = jwtUtil.extractUsername(token);
+            } catch (Exception e) {
+                // Token invalid
+            }
+        }
+
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            if (jwtUtil.validateToken(token)) {
+                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                UsernamePasswordAuthenticationToken authToken = 
+                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+            }
+        }
+        filterChain.doFilter(request, response);
+    }
+}
+
+
+====================================================================================
+
+
+//package com.cts.main.config;
+//import org.springframework.beans.factory.annotation.Autowired;
+//import org.springframework.context.annotation.Bean;
+//import org.springframework.context.annotation.Configuration;
+//import org.springframework.security.authentication.AuthenticationManager;
+//import org.springframework.security.config.Customizer;
+//import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+//import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+//import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+//import org.springframework.security.config.http.SessionCreationPolicy;
+//import org.springframework.security.core.userdetails.UserDetailsService;
+//import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+//import org.springframework.security.crypto.password.PasswordEncoder;
+//import org.springframework.security.web.SecurityFilterChain;
+//import org.springframework.web.cors.CorsConfiguration;
+//import org.springframework.web.cors.CorsConfigurationSource;
+//import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+//
+//@Configuration
+//@EnableWebSecurity
+//public class SecurityConfig {
+//	
+//	 @Autowired
+//	    private UserDetailsService userDetailsService;
+//
+//	    @Bean
+//	    public PasswordEncoder passwordEncoder() {
+//	        return new BCryptPasswordEncoder();
+//	    }
+//
+//	    @Bean
+//	    public AuthenticationManager authenticationManager(
+//	            AuthenticationConfiguration configuration) throws Exception {
+//	        return configuration.getAuthenticationManager();
+//	    }
+//
+//    @Bean
+//    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+//        http.csrf(csrf -> csrf.disable())
+////            .cors(cors -> cors.configurationSource(corsConfigurationSource()))  // enable CORS with custom config
+//            .authorizeHttpRequests(authorize -> authorize
+//                .requestMatchers("/menu/view", "/user/adduser", "/user/login").permitAll()
+//                .anyRequest().authenticated()
+//            )
+//            .httpBasic(Customizer.withDefaults())
+//            .sessionManagement(session -> session
+//                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+//            );
+//
+//        return http.build();
+//    }
+//
+////    @Bean
+////    public CorsConfigurationSource corsConfigurationSource() {
+////        CorsConfiguration configuration = new CorsConfiguration();
+////        configuration.setAllowCredentials(true);
+////        configuration.addAllowedOrigin("http://localhost:3000"); // allow your frontend origin
+////        configuration.addAllowedHeader("*");
+////        configuration.addAllowedMethod("*");
+////        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+////        source.registerCorsConfiguration("/**", configuration);
+////        return source;
+////    }
+//    
+//    @Bean
+//    public PasswordEncoder encoder() {
+//    	return new BCryptPasswordEncoder();
+//    }
+//}
+
+
+
+
+//-------------------------------------------------------------------------------
+
+
+package com.gourmet.main.config;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
+public class SecurityConfig {
+
+    @Autowired
+    private UserDetailsService userDetailsService;
+    
+    @Autowired
+    private JwtFilter jwtFilter;
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration configuration) throws Exception {
+        return configuration.getAuthenticationManager();
+    }
+    
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable()) // CSRF is usually disabled for JWT
+            .cors(Customizer.withDefaults())
+            .headers(headers -> headers.frameOptions(frame -> frame.disable()))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/user/login", "/user/adduser", "/menu/view", "/h2-console/**").permitAll()
+                .anyRequest().authenticated()
+            )
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class); // <--- Add Filter Here
+
+        return http.build();
+    }
+
+//    @Bean
+//    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+//        http.csrf((csrf)->csrf.disable())
+//        .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+//                .authorizeHttpRequests((authorize) ->
+//                        authorize
+//                                .requestMatchers("/menu/view","/user/adduser", "/user/login").permitAll()
+////                                .requestMatchers(HttpMethod.POST, "/api/menuItems/**").hasRole("ADMIN")
+////                                .requestMatchers(HttpMethod.PUT, "/api/menuItems/**").hasRole("ADMIN")
+////                                .requestMatchers(HttpMethod.DELETE, "/api/menuItems/**").hasRole("ADMIN")
+////                                .requestMatchers(HttpMethod.GET, "/api/customerOrders/**").authenticated()
+////                                .requestMatchers(HttpMethod.POST, "/api/customerOrders/**").hasAnyRole("ADMIN", "CUSTOMER")
+////                                .requestMatchers(HttpMethod.PUT, "/api/customerOrders/**").hasAnyRole("ADMIN", "CUSTOMER")
+////                                .requestMatchers(HttpMethod.DELETE, "/api/customerOrders/**").hasRole("ADMIN")
+//                                .anyRequest().authenticated()
+//                ).httpBasic(Customizer.withDefaults())
+//                .sessionManagement(session -> session
+//                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+//
+//        return http.build();
+//    }
+    
+    
+    
+    @Bean
+public CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration configuration = new CorsConfiguration();
+    configuration.setAllowCredentials(true);
+    configuration.addAllowedOrigin("http://localhost:4200"); // allow your frontend origin
+    configuration.addAllowedHeader("*");
+    configuration.addAllowedMethod("*");
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/**", configuration);
+    return source;
+}
+}
+
+
+====================================================================================
+
+
+
+//package com.cts.main.controllers;
+//
+//import java.util.List;
+//import org.springframework.beans.factory.annotation.Autowired;
+//import org.springframework.http.HttpStatus;
+//import org.springframework.http.ResponseEntity;
+//import org.springframework.security.access.prepost.PreAuthorize;
+//import org.springframework.web.bind.annotation.*;
+//import com.cts.main.dtos.CustomerOrderDTO;
+//import com.cts.main.entities.CustomerOrder;
+//import com.cts.main.services.CustomerOrderService;
+//import jakarta.validation.Valid;
+//
+//@RestController
+//public class CustomerOrderController {
+//
+//    @Autowired
+//    private CustomerOrderService customerOrderService;
+//
+//    @GetMapping("/customer")//admin
+//    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+//    public ResponseEntity<List<CustomerOrder>> getAllCustomerOrder() {
+//        List<CustomerOrder> list = customerOrderService.getAllOrders();
+//        return ResponseEntity.ok(list);
+//    }
+//
+//    @GetMapping("/customer/{id}")//admin
+//    @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ROLE_CUSTOMER')")
+//    public ResponseEntity<CustomerOrder> getCustomerOrderById(@PathVariable Long id) {
+//        CustomerOrder order = customerOrderService.getOrderById(id);
+//        return ResponseEntity.ok(order);
+//    }
+//
+//    @PostMapping("/customer")
+//    @PreAuthorize("hasRole('ROLE_CUSTOMER') or hasRole('ROLE_ADMIN')")
+//    public ResponseEntity<String> addCustomerOrder(@Valid @RequestBody CustomerOrderDTO orderDetails) {
+//        customerOrderService.createOrder(orderDetails);
+//        return new ResponseEntity<>("Customer Order created successfully", HttpStatus.CREATED);
+//    }
+//
+//    @PutMapping("/customer/{id}")
+//    @PreAuthorize("hasRole('ROLE_CUSTOMER') or hasRole('ROLE_ADMIN')")
+//    public ResponseEntity<String> updateCustomerOrderById(@PathVariable Long id, @Valid @RequestBody CustomerOrderDTO orderDetails) {
+//        customerOrderService.updateOrderById(id, orderDetails);
+//        return ResponseEntity.ok("Customer Order updated successfully");
+//    }
+//
+//    @DeleteMapping("/customer/{id}")//admin
+//    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+//    public ResponseEntity<String> deleteCustomerOrderById(@PathVariable Long id) {
+//        customerOrderService.deleteOrder(id);
+//        return ResponseEntity.ok("Customer Order deleted successfully");
+//    }
+//}
+
+package com.gourmet.main.controllers;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import com.gourmet.main.dtos.CustomerOrderDTO;
+import com.gourmet.main.entities.CustomerOrder;
+import com.gourmet.main.responses.ApiResponse;
+import com.gourmet.main.services.CustomerOrderService;
+
+import jakarta.validation.Valid;
+
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@CrossOrigin(origins = "*")
+public class CustomerOrderController {
+
+	private static final Logger logger = LoggerFactory.getLogger(CustomerOrderController.class);
+
+	@Autowired
+	private CustomerOrderService customerOrderService;	
+
+	@GetMapping("/customer")
+	@PreAuthorize("hasAuthority('ROLE_ADMIN')")
+	public ResponseEntity<ApiResponse<List<CustomerOrder>>> getAllCustomerOrder() {
+		logger.info("Fetching all customer orders");
+		List<CustomerOrder> list = customerOrderService.getAllOrders();
+		ApiResponse<List<CustomerOrder>> response = new ApiResponse<>("Customers fetched successfully!", list);
+		return ResponseEntity.ok(response);
+	}
+
+	@GetMapping("/customer/{id}")
+	@PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ROLE_CUSTOMER')")
+	public ResponseEntity<ApiResponse<CustomerOrder>> getCustomerOrderById(@PathVariable Long id) {
+		logger.info("Fetching customer order with ID: {}", id);
+		CustomerOrder order = customerOrderService.getOrderById(id);
+		ApiResponse<CustomerOrder> response = new ApiResponse<>("Customer order fetched successfully!", order);
+		return ResponseEntity.ok(response);
+	}
+	
+	
+	//GET customer by user name 
+//	@GetMapping("/customer/{username}")
+//	@PreAuthorize("hasRole('ROLE_CUSTOMER')")
+//	public ResponseEntity<ApiResponse<CustomerOrder>> getCustomerOrderByUsername(@RequestBody String username){
+//		logger.info("Fetching customer order for: "+ username);
+//		CustomerOrder order = customerOrderService.getOrderByUserName(username);
+//		ApiResponse<CustomerOrder> response = new ApiResponse<>("Customer order fetched successfully!" , order);
+//		return ResponseEntity.ok(response);
+//	}
+	
+	@GetMapping("/byUsername/{username}")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_CUSTOMER')")
+    public ResponseEntity<ApiResponse<List<CustomerOrder>>> getOrdersByUsername(@PathVariable String username) {
+        logger.info("Fetching orders for username: {}", username);
+        List<CustomerOrder> orders = customerOrderService.getOrdersByUsername(username);
+        ApiResponse<List<CustomerOrder>> response = new ApiResponse<>("Orders fetched successfully!", orders);
+        return ResponseEntity.ok(response);
+    }
+
+	@PostMapping("/customer")
+	@PreAuthorize("hasRole('ROLE_CUSTOMER') or hasRole('ROLE_ADMIN')")
+	public ResponseEntity<ApiResponse<String>> addCustomerOrder(@Valid @RequestBody CustomerOrderDTO orderDetails) {
+		logger.info("Creating a new customer order for customer: {}", orderDetails.getCustomerName());
+		customerOrderService.createOrder(orderDetails);
+		ApiResponse<String> response = new ApiResponse<>("Customer order created successfully!", null);
+		return new ResponseEntity<>(response, HttpStatus.CREATED);
+	}
+
+	
+	
+	@PutMapping("/customer/{id}")
+	@PreAuthorize("hasRole('ROLE_CUSTOMER') or hasRole('ROLE_ADMIN')")
+	public ResponseEntity<ApiResponse<String>> updateCustomerOrderById(@PathVariable Long id,
+			@Valid @RequestBody CustomerOrderDTO orderDetails) {
+		logger.info("Updating customer order with ID: {}", id);
+		customerOrderService.updateOrderById(id, orderDetails);
+		ApiResponse<String> response = new ApiResponse<>("Customer order updated successfully!", null);
+		return ResponseEntity.ok(response);
+	}
+
+	@DeleteMapping("/customer/{id}")
+	@PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ROLE_CUSTOMER')")
+	public ResponseEntity<ApiResponse<String>> deleteCustomerOrderById(@PathVariable Long id) {
+		logger.info("Deleting customer order with ID: {}", id);
+		customerOrderService.deleteOrder(id);
+		ApiResponse<String> response = new ApiResponse<>("Customer order deleted successfully!", null);
+		return ResponseEntity.ok(response);
+	}
+
+	@GetMapping("/customer/orders")
+	@PreAuthorize("hasRole('ROLE_ADMIN')")
+	public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAllOrdersForCooks() {
+		logger.info("Fetching all customer orders for admin");
+		List<Map<String, Object>> orders = customerOrderService.getAllOrdersForCooks();
+		ApiResponse<List<Map<String, Object>>> response = new ApiResponse<>("Orders fetched successfully!", orders);
+		return ResponseEntity.ok(response);
+	}
+}
+
+
+
+====================================================================================
+
+
+//package com.cts.main.controllers;
+//
+//import java.util.List;
+//import org.springframework.beans.factory.annotation.Autowired;
+//import org.springframework.http.ResponseEntity;
+//import org.springframework.security.access.prepost.PreAuthorize;
+//import org.springframework.web.bind.annotation.*;
+//
+//import com.cts.main.dtos.MenuItemDTO;
+//import com.cts.main.entities.MenuItem;
+//import com.cts.main.services.MenuItemService;
+//
+//import jakarta.validation.Valid;
+//
+//@RestController
+//@RequestMapping("/menu")
+//public class MenuItemController {
+//
+//    @Autowired
+//    private MenuItemService menuItemService;
+//
+//    @PostMapping("/add")
+//    @PreAuthorize("hasRole('ROLE_ADMIN')")
+//    public ResponseEntity<?> addFoodItem(@Valid @RequestBody MenuItemDTO menuItemDTO) {
+//        MenuItem menuItem = menuItemService.addFoodItem(menuItemDTO);
+//        return ResponseEntity.ok(menuItem);
+//    }
+//
+//    @GetMapping("/view")
+//    public List<MenuItem> getAllItems() {
+//        return menuItemService.getAllItems();
+//    }
+//
+//    @PutMapping("/update/{id}")
+//    @PreAuthorize("hasRole('ROLE_ADMIN')")
+//    public ResponseEntity<?> updateMenuItem(@PathVariable Long id, @Valid @RequestBody MenuItemDTO menuItemDTO) {
+//        MenuItem updateMenuItem = menuItemService.updateFoodItemById(id, menuItemDTO);
+//        return ResponseEntity.ok(updateMenuItem);
+//    }
+//
+//    @DeleteMapping("/delete/{id}")
+//    @PreAuthorize("hasRole('ROLE_ADMIN')")
+//    public ResponseEntity<?> deleteMenuItem(@PathVariable Long id) {
+//        menuItemService.deleteFoodItemById(id);
+//        return ResponseEntity.ok().build();
+//    }
+//}
+package com.gourmet.main.controllers;
+
+import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import com.gourmet.main.dtos.MenuItemDTO;
+import com.gourmet.main.entities.MenuItem;
+import com.gourmet.main.responses.ApiResponse;
+import com.gourmet.main.services.MenuItemService;
+
+import jakarta.validation.Valid;
+
+@RestController
+@RequestMapping("/menu")
+//@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(origins = "*")
+public class MenuItemController {
+
+    private static final Logger logger = LoggerFactory.getLogger(MenuItemController.class);
+
+    @Autowired
+    private MenuItemService menuItemService;
+
+    @PostMapping("/add")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ResponseEntity<?> addFoodItem(@Valid @RequestBody MenuItemDTO menuItemDTO) {
+        logger.info("Adding new food item: {}", menuItemDTO.getFoodName());
+        MenuItem menuItem = menuItemService.addFoodItem(menuItemDTO);
+        ApiResponse<MenuItem> response = new ApiResponse<>("Item added successfully!", menuItem);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/view")
+    public ResponseEntity<?> getAllItems() {
+        logger.info("Fetching all menu items");
+        List<MenuItem> items = menuItemService.getAllItems();
+        ApiResponse<List<MenuItem>> response = new ApiResponse<>("Items fetched successfully!", items);
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/update/{id}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ResponseEntity<?> updateMenuItem(@PathVariable Long id, @Valid @RequestBody MenuItemDTO menuItemDTO) {
+        logger.info("Updating menu item with ID: {}", id);
+        MenuItem updateMenuItem = menuItemService.updateFoodItemById(id, menuItemDTO);
+        ApiResponse<MenuItem> response = new ApiResponse<>("Item updated successfully!", updateMenuItem);
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/delete/{id}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ResponseEntity<?> deleteMenuItem(@PathVariable Long id) {
+        logger.info("Deleting menu item with ID: {}", id);
+        menuItemService.deleteFoodItemById(id);
+        ApiResponse<String> response = new ApiResponse<>("Item deleted successfully!", null);
+        return ResponseEntity.ok(response);
+    }
+}
+
+
+====================================================================================
+
+
+//package com.cts.main.controllers;
+//
+//import java.util.List;
+//
+//import org.springframework.beans.factory.annotation.Autowired;
+//import org.springframework.http.ResponseEntity;
+//import org.springframework.security.access.prepost.PreAuthorize;
+//import org.springframework.web.bind.annotation.GetMapping;
+//import org.springframework.web.bind.annotation.PostMapping;
+//import org.springframework.web.bind.annotation.PutMapping;
+//import org.springframework.web.bind.annotation.RequestBody;
+//import org.springframework.web.bind.annotation.RequestMapping;
+//import org.springframework.web.bind.annotation.RestController;
+//
+//import com.cts.main.entities.User;
+//import com.cts.main.services.UserService;
+//
+//@RestController
+//@RequestMapping("/user")
+//public class UserController {
+//
+//	@Autowired
+//	private UserService userService;
+//
+//	@PostMapping("/adduser")
+//	//@PreAuthorize("hasRole('ROLE_ADMIN')")
+//	public User createUser(@RequestBody User user) {
+//		return userService.adduser(user);
+//	}
+//
+//	@PutMapping("/updateuser")
+//	@PreAuthorize("hasRole('ROLE_ADMIN')")
+//	public ResponseEntity<String> updateUser(@RequestBody User user) {
+//		return userService.updateuser(user);
+//	}
+//	
+//	@GetMapping("/showuser")
+//	@PreAuthorize("hasRole('ROLE_ADMIN')")
+//	public List<User> getuser(){
+//		return userService.getuser();
+//	}
+//}
+
+//
+//package com.cts.main.controllers;
+//
+//import java.util.List;
+//import org.springframework.beans.factory.annotation.Autowired;
+//import org.springframework.http.ResponseEntity;
+//import org.springframework.security.access.prepost.PreAuthorize;
+//import org.springframework.security.core.context.SecurityContextHolder;
+//import org.springframework.security.core.userdetails.UserDetails;
+//import org.springframework.validation.annotation.Validated;
+//import org.springframework.web.bind.annotation.*;
+//
+//import com.cts.main.dtos.UserDTO;
+//import com.cts.main.entities.User;
+//import com.cts.main.services.UserService;
+//
+//import jakarta.validation.Valid;
+//
+//@RestController
+//@RequestMapping("/user")
+//@Validated
+//public class UserController {
+//
+//    @Autowired
+//    private UserService userService;
+//
+//    @PostMapping("/adduser")
+//    public ResponseEntity<?> createUser(@Valid @RequestBody UserDTO userDTO) {
+//        if ("ROLE_ADMIN".equals(userDTO.getRoles())) {
+//            if (!isAdmin()) {
+//                return ResponseEntity.status(403).body("You do not have permission to create an admin user.");
+//            }
+//        }
+////        User createdUser = userService.adduser(userDTO);
+////        return ResponseEntity.ok(createdUser);
+//        return userService.adduser(userDTO);
+//    }
+//
+//    @PutMapping("/updateuser")
+//    @PreAuthorize("hasRole('ROLE_ADMIN')")
+//    public ResponseEntity<?> updateUser(@Valid @RequestBody UserDTO userDTO) {
+//        return userService.updateuser(userDTO);
+//    }
+//
+//    @GetMapping("/showuser")
+//    @PreAuthorize("hasRole('ROLE_ADMIN')")
+//    public List<User> getuser() {
+//        return userService.getuser();
+//    }
+//
+//    private boolean isAdmin() {
+//        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+//        if (principal instanceof UserDetails) {
+//            UserDetails userDetails = (UserDetails) principal;
+//            return userDetails.getAuthorities().stream()
+//                    .anyMatch(grantedAuthority -> "ROLE_ADMIN".equals(grantedAuthority.getAuthority()));
+//        }
+//        return false;
+//    }
+//}
+
+//package com.cts.main.controllers;
+//
+//import java.util.List;
+//import org.slf4j.Logger;
+//import org.slf4j.LoggerFactory;
+//import org.springframework.beans.factory.annotation.Autowired;
+//import org.springframework.http.ResponseEntity;
+//import org.springframework.security.access.prepost.PreAuthorize;
+//import org.springframework.security.core.context.SecurityContextHolder;
+//import org.springframework.security.core.userdetails.UserDetails;
+//import org.springframework.validation.annotation.Validated;
+//import org.springframework.web.bind.annotation.*;
+//
+//import com.cts.main.dtos.UserDTO;
+//import com.cts.main.entities.User;
+//import com.cts.main.services.UserService;
+//
+//import jakarta.validation.Valid;
+//
+//@RestController
+//@RequestMapping("/user")
+//@Validated
+//public class UserController {
+//
+//    private static final Logger logger = LoggerFactory.getLogger(UserController.class);
+//
+//    @Autowired
+//    private UserService userService;
+//
+//    @PostMapping("/adduser")
+//    public ResponseEntity<?> createUser(@Valid @RequestBody UserDTO userDTO) {
+//        logger.info("Attempting to create user with username: {}", userDTO.getUsername());
+//        if ("ROLE_ADMIN".equals(userDTO.getRoles())) {
+//            if (!isAdmin()) {
+//                logger.info("Permission denied: User does not have permission to create an admin user.");
+//                return ResponseEntity.status(403).body("You do not have permission to create an admin user.");
+//            }
+//        }
+//        ResponseEntity<?> response = userService.adduser(userDTO);
+//        logger.info("User created successfully with username: {}", userDTO.getUsername());
+//        return ResponseEntity.ok("");
+//    }
+//
+//    @PutMapping("/updateuser")
+//    @PreAuthorize("hasRole('ROLE_ADMIN')")
+//    public ResponseEntity<?> updateUser(@Valid @RequestBody UserDTO userDTO) {
+//        logger.info("Attempting to update user with ID: {}", userDTO.getUser_id());
+//        ResponseEntity<?> response = userService.updateuser(userDTO);
+//        logger.info("User updated successfully with ID: {}", userDTO.getUser_id());
+//        return response;
+//    }
+//
+//    @GetMapping("/showuser")
+//    @PreAuthorize("hasRole('ROLE_ADMIN')")
+//    public List<User> getuser() {
+//        logger.info("Fetching all users");
+//        List<User> users = userService.getuser();
+//        logger.info("Number of users fetched: {}", users.size());
+//        return users;
+//    }
+//
+//    private boolean isAdmin() {
+//        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+//        if (principal instanceof UserDetails) {
+//            UserDetails userDetails = (UserDetails) principal;
+//            boolean isAdmin = userDetails.getAuthorities().stream()
+//                    .anyMatch(grantedAuthority -> "ROLE_ADMIN".equals(grantedAuthority.getAuthority()));
+//            logger.info("User is admin: {}", isAdmin);
+//            return isAdmin;
+//        }
+//        return false;
+//    }
+//}
+
+package com.gourmet.main.controllers;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
+
+import com.gourmet.main.dtos.UserDTO;
+import com.gourmet.main.entities.CustomerOrder;
+import com.gourmet.main.entities.User;
+import com.gourmet.main.repository.UserRepository;
+import com.gourmet.main.responses.ApiResponse;
+import com.gourmet.main.services.CustomerOrderService;
+import com.gourmet.main.services.UserService;
+import com.gourmet.main.util.JwtUtil;
+
+import jakarta.validation.Valid;
+
+@RestController
+@RequestMapping("/user")
+@Validated
+//@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(origins = "*")
+public class UserController {
+
+	private static final Logger logger = LoggerFactory.getLogger(UserController.class);
+
+	@Autowired
+	private UserService userService;
+	
+	@Autowired
+	private UserRepository userRepository;
+	
+	@Autowired
+    private AuthenticationManager authenticationManager;
+    @Autowired
+    private JwtUtil jwtUtil;
+	
+	@Autowired
+	private PasswordEncoder passwordEncoder;
+
+	@PostMapping("/adduser")
+	public ResponseEntity<ApiResponse<User>> createUser(@Valid @RequestBody UserDTO userDTO) {
+		logger.info("Attempting to create user with username: {}", userDTO.getUsername());
+		// checking if role is put admin or not if someone else trying to make admin
+		// role then throw error
+		if ("ROLE_ADMIN".equals(userDTO.getRoles())) {
+			if (!isAdmin()) {
+				logger.info("Permission denied: User does not have permission to create an admin user.");
+				ApiResponse<User> response = new ApiResponse<>("You do not have permission to create an admin user.",
+						null);
+				return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+			}
+		}
+
+		// if getRoles put by the user in not "ROLE_ADMIN" then here
+		// create "ROLE_CUSTOMER" or "ROLE_ADMIN" using .adduser(userDTO)
+		// as .adduser() will send back responseEntity
+		ResponseEntity<ApiResponse<User>> serviceResponse = (ResponseEntity<ApiResponse<User>>) userService
+				.adduser(userDTO);
+
+		// check if creation is successful then create response else jump to return
+		// statement to throw error.
+		if (serviceResponse.getStatusCode().is2xxSuccessful()) {
+			ApiResponse<User> apiResponse = serviceResponse.getBody();
+			User createdUser = apiResponse != null ? apiResponse.getData() : null;
+			ApiResponse<User> response = new ApiResponse<>("User created successfully", createdUser);
+			logger.info("User created successfully with username: {}", userDTO.getUsername());
+			return ResponseEntity.status(HttpStatus.CREATED).body(response);
+		}
+		return (ResponseEntity<ApiResponse<User>>) serviceResponse;
+	}
+
+	@PutMapping("/updateuser")
+	@PreAuthorize("hasRole('ROLE_ADMIN')")
+	public ResponseEntity<ApiResponse<User>> updateUser(@Valid @RequestBody UserDTO userDTO) {
+		logger.info("Attempting to update user with ID: {}", userDTO.getUser_id());
+		ResponseEntity<ApiResponse<User>> serviceResponse = (ResponseEntity<ApiResponse<User>>) userService
+				.updateuser(userDTO);
+		if (serviceResponse.getStatusCode().is2xxSuccessful()) {
+			ApiResponse<User> apiResponse = serviceResponse.getBody();
+			User updatedUser = apiResponse != null ? apiResponse.getData() : null;
+			ApiResponse<User> response = new ApiResponse<>("User updated successfully!", updatedUser);
+			logger.info("User updated successfully with ID: {}", userDTO.getUser_id());
+			return ResponseEntity.ok(response);
+		}
+		return (ResponseEntity<ApiResponse<User>>) serviceResponse;
+	}
+
+	@GetMapping("/showuser")
+	@PreAuthorize("hasRole('ROLE_ADMIN')")
+	public ResponseEntity<ApiResponse<List<User>>> getuser() {
+		logger.info("Fetching all users");
+		List<User> users = userService.getuser();
+		ApiResponse<List<User>> response = new ApiResponse<>("Users fetched successfully!", users);
+		logger.info("Number of users fetched: {}", users.size());
+		return ResponseEntity.ok(response);
+	}
+	
+//	@PostMapping("/login")
+//    public ResponseEntity<ApiResponse<String>> loginUser(@RequestBody UserDTO userDTO) {
+//        try {
+//            // Authenticate user
+//            Optional<User> optionalUser = userRepository.findByUsername(userDTO.getUsername());
+//            if (optionalUser.isPresent()) {
+//                User user = optionalUser.get();
+//                if (passwordEncoder.matches(userDTO.getPassword(), user.getPassword())) {
+//                    return ResponseEntity.ok(new ApiResponse<>("Login successful", user.getRoles()));
+//                }
+//            }
+//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>("Invalid username or password", null));
+//        } catch (Exception e) {
+//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ApiResponse<>("Login failed", null));
+//        }
+//    }
+	
+	@PostMapping("/login")
+    public ResponseEntity<ApiResponse<Map<String, String>>> loginUser(@RequestBody UserDTO userDTO) {
+        try {
+            // 1. Authenticate (Checks password automatically)
+            Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(userDTO.getUsername(), userDTO.getPassword())
+            );
+
+            // 2. If successful, generate Token
+            if (authentication.isAuthenticated()) {
+                // Fetch user to get Role
+                User user = userRepository.findByUsername(userDTO.getUsername()).get();
+                String token = jwtUtil.generateToken(user.getUsername(), user.getRoles());
+                
+                // 3. Return Token + Role + Username
+                Map<String, String> data = new HashMap<>();
+                data.put("token", token);
+                data.put("role", user.getRoles());
+                data.put("username", user.getUsername());
+                
+                return ResponseEntity.ok(new ApiResponse<>("Login successful", data));
+            }
+        } catch (Exception e) {
+             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                 .body(new ApiResponse<>("Invalid Credentials", null));
+        }
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+             .body(new ApiResponse<>("Login Failed", null));
+    }
+	
+	
+
+	private boolean isAdmin() {
+		Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+		if (principal instanceof UserDetails) {
+			UserDetails userDetails = (UserDetails) principal;
+			boolean isAdmin = userDetails.getAuthorities().stream()
+					.anyMatch(grantedAuthority -> "ROLE_ADMIN".equals(grantedAuthority.getAuthority()));
+			logger.info("User is admin: {}", isAdmin);
+			return isAdmin;
+		}
+		return false;
+	}
+}
+
+
+
+====================================================================================
+
+package com.gourmet.main.dtos;
+
+import java.util.Map;
+
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+//
+//@Data
+//@AllArgsConstructor
+//@NoArgsConstructor
+public class CustomerOrderDTO {
+
+	@NotBlank(message = "Invalid Name: Cannot be blank!")
+	@NotNull(message = "Invalid Name: Cannot be null!")
+	@Size(min = 3, max = 30, message = "Invalid Name: Name should be 3 - 30 characters!")
+	private String customerName;
+
+	@NotBlank(message = "Invalid Phone number: Empty number!")
+	@NotNull(message = "Invalid Phone number: Number is NULL!")
+	@Pattern(regexp = "^\\d{10}$", message = "Invalid phone number!")
+	private String customerPhoneNumber;
+
+	
+	@NotBlank(message = "Invalid Address: Cannot be blank!")
+	@NotNull(message = "Invalid Address: Cannot be null!")
+	@Size(min = 10, max = 50, message = "Invalid Address: Address should be 10 - 50 characters!")
+	private String customerAddress;
+
+	
+//	@NotNull(message = "Customer table number is required")
+//	@Pattern(regexp = "^(10|[1-9])$", message = "Choose table number between 1 and 10")
+//	private String customerTableNumber;
+
+//	@NotNull(message = "Order Items Required!")
+//	@Size(min = 1, message = "Please select at least one Food Item to order!")
+//	private List<Long> orderItems;
+
+	@NotNull(message = "Order items are required")
+	private Map<Long, @Positive @Max(value = 5, message = "Quantity must not exceed 5") Integer> orderItems;
+
+
+public CustomerOrderDTO(
+		@NotBlank(message = "Invalid Name: Cannot be blank!") @NotNull(message = "Invalid Name: Cannot be null!") @Size(min = 3, max = 30, message = "Invalid Name: Name should be 3 - 30 characters!") String customerName,
+		@NotBlank(message = "Invalid Phone number: Empty number!") @NotNull(message = "Invalid Phone number: Number is NULL!") @Pattern(regexp = "^\\d{10}$", message = "Invalid phone number!") String customerPhoneNumber,
+		@NotBlank(message = "Invalid Address: Cannot be blank!") @NotNull(message = "Invalid Address: Cannot be null!") @Size(min = 10, max = 50, message = "Invalid Address: Address should be 10 - 50 characters!") String customerAddress,
+		@NotNull(message = "Order items are required") Map<Long, @Positive @Max(value = 5, message = "Quantity must not exceed 5") Integer> orderItems) {
+	super();
+	this.customerName = customerName;
+	this.customerPhoneNumber = customerPhoneNumber;
+	this.customerAddress = customerAddress;
+	this.orderItems = orderItems;
+}
+
+
+public CustomerOrderDTO() {
+	super();
+	// TODO Auto-generated constructor stub
+}
+
+
+public String getCustomerName() {
+	return customerName;
+}
+
+
+public void setCustomerName(String customerName) {
+	this.customerName = customerName;
+}
+
+
+public String getCustomerPhoneNumber() {
+	return customerPhoneNumber;
+}
+
+
+public void setCustomerPhoneNumber(String customerPhoneNumber) {
+	this.customerPhoneNumber = customerPhoneNumber;
+}
+
+
+public String getCustomerAddress() {
+	return customerAddress;
+}
+
+
+public void setCustomerAddress(String customerAddress) {
+	this.customerAddress = customerAddress;
+}
+
+
+public Map<Long, Integer> getOrderItems() {
+	return orderItems;
+}
+
+
+public void setOrderItems(Map<Long, Integer> orderItems) {
+	this.orderItems = orderItems;
+}
+	
+	
+}
+
+
+====================================================================================
+
+
+/*
+ * Jakarta Bean Validation API
+ *
+ * License: Apache License, Version 2.0
+ * See the license.txt file in the root directory or <http://www.apache.org/licenses/LICENSE-2.0>.
+ */
+package jakarta.validation.constraints;
+
+import static java.lang.annotation.ElementType.ANNOTATION_TYPE;
+import static java.lang.annotation.ElementType.CONSTRUCTOR;
+import static java.lang.annotation.ElementType.FIELD;
+import static java.lang.annotation.ElementType.METHOD;
+import static java.lang.annotation.ElementType.PARAMETER;
+import static java.lang.annotation.ElementType.TYPE_USE;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
+
+import java.lang.annotation.Documented;
+import java.lang.annotation.Repeatable;
+import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
+
+import jakarta.validation.Constraint;
+import jakarta.validation.Payload;
+import jakarta.validation.constraints.Max.List;
+
+/**
+ * The annotated element must be a number whose value must be lower or
+ * equal to the specified maximum.
+ * <p>
+ * Supported types are:
+ * <ul>
+ *     <li>{@code BigDecimal}</li>
+ *     <li>{@code BigInteger}</li>
+ *     <li>{@code byte}, {@code short}, {@code int}, {@code long}, and their respective
+ *     wrappers</li>
+ * </ul>
+ * Note that {@code double} and {@code float} are not supported due to rounding errors
+ * (some providers might provide some approximative support).
+ * <p>
+ * {@code null} elements are considered valid.
+ *
+ * @author Emmanuel Bernard
+ */
+@Target({ METHOD, FIELD, ANNOTATION_TYPE, CONSTRUCTOR, PARAMETER, TYPE_USE })
+@Retention(RUNTIME)
+@Repeatable(List.class)
+@Documented
+@Constraint(validatedBy = { })
+public @interface Max {
+
+	String message() default "{jakarta.validation.constraints.Max.message}";
+
+	Class<?>[] groups() default { };
+
+	Class<? extends Payload>[] payload() default { };
+
+	/**
+	 * @return value the element must be lower or equal to
+	 */
+	long value();
+
+	/**
+	 * Defines several {@link Max} annotations on the same element.
+	 *
+	 * @see Max
+	 */
+	@Target({ METHOD, FIELD, ANNOTATION_TYPE, CONSTRUCTOR, PARAMETER, TYPE_USE })
+	@Retention(RUNTIME)
+	@Documented
+	@interface List {
+
+		Max[] value();
+	}
+}
+
+
+======================================================================================
+
+package com.gourmet.main.dtos;
+
+import jakarta.validation.constraints.Pattern;
+import lombok.Data;
+
+//@Data
+public class UserDTO {
+	
+	public Long getUser_id() {
+		return user_id;
+	}
+
+	public void setUser_id(Long user_id) {
+		this.user_id = user_id;
+	}
+
+	public String getUsername() {
+		return username;
+	}
+
+	public void setUsername(String username) {
+		this.username = username;
+	}
+
+	public String getPassword() {
+		return password;
+	}
+
+	public void setPassword(String password) {
+		this.password = password;
+	}
+
+	public String getRoles() {
+		return roles;
+	}
+
+	public void setRoles(String roles) {
+		this.roles = roles;
+	}
+
+	private Long user_id;
+
+	@Pattern(regexp = "^[A-Z][a-zA-Z0-9]{2,11}$", message = "Username should be 3 to 12 characters long, start with a capital letter, and can include numbers.")
+	private String username;
+
+    @Pattern(regexp = "^(?=.*[!@#$%^&*]).{4,10}$", message = "Password should be 4 to 10 characters long with at least 1 special character.")
+    private String password;
+
+    @Pattern(regexp = "ROLE_ADMIN|ROLE_CUSTOMER", message = "Role should be either ROLE_ADMIN or ROLE_CUSTOMER.")
+    private String roles;
+    
+    
+}
+
+====================================================================================
+
+////package com.cts.main.entities;
+////
+////import java.util.List;
+////
+////import jakarta.persistence.Column;
+////import jakarta.persistence.Entity;
+////import jakarta.persistence.GeneratedValue;
+////import jakarta.persistence.GenerationType;
+////import jakarta.persistence.Id;
+////import jakarta.persistence.JoinColumn;
+////import jakarta.persistence.JoinTable;
+////import jakarta.persistence.ManyToMany;
+////import jakarta.persistence.Table;
+////import lombok.Data;
+////import lombok.NoArgsConstructor;
+////
+////@Entity
+////@Data
+////@Table(name = "customer_order")
+////@NoArgsConstructor
+////public class CustomerOrder {
+////	@Id
+////	@GeneratedValue(strategy = GenerationType.IDENTITY)
+////	@Column
+////	private Long id;
+////
+////	@Column(name = "customer_name")
+////	private String customerName;
+////
+////	@Column(name = "customer_phone_number")
+////	private String customerPhoneNumber;
+////
+////	@Column(name = "customer_table_number")
+////	private String customerTableNumber;
+////
+////	@ManyToMany
+////	@JoinTable(name = "customer_order_with_order_items", 
+////	joinColumns = @JoinColumn(name = "customer_order_id"), 
+////	inverseJoinColumns = @JoinColumn(name = "order_items_id"))
+////	private List<MenuItem> orderItems;
+////
+////	@Column(name = "total_price")
+////	private double totalPrice;
+////
+////	public CustomerOrder(String customerName, String customerPhoneNumber, String customerTableNumber,
+////			List<MenuItem> orderItems, double totalPrice) {
+////		super();
+////		this.customerName = customerName;
+////		this.customerPhoneNumber = customerPhoneNumber;
+////		this.customerTableNumber = customerTableNumber;
+////		this.orderItems = orderItems;
+////		this.totalPrice = totalPrice;
+////	}
+////	
+////	
+////}
+//
+//
+//
+//package com.cts.main.entities;
+//
+//import java.util.List;
+//
+//import jakarta.persistence.*;
+//import lombok.Data;
+//import lombok.NoArgsConstructor;
+//
+//@Entity
+//@Data
+//@Table(name = "customer_order")
+//@NoArgsConstructor
+//public class CustomerOrder {
+//    @Id
+//    @GeneratedValue(strategy = GenerationType.IDENTITY)
+//    private Long id;
+//
+//    @Column(name = "customer_name")
+//    private String customerName;
+//
+//    @Column(name = "customer_phone_number")
+//    private String customerPhoneNumber;
+//
+//    @Column(name = "customer_table_number")
+//    private String customerTableNumber;
+//
+//    @ManyToMany
+//    @JoinTable(name = "customer_order_with_order_items", 
+//               joinColumns = @JoinColumn(name = "customer_order_id"), 
+//               inverseJoinColumns = @JoinColumn(name = "order_items_id"))
+//    private List<MenuItem> orderItems;
+//
+//    @Column(name = "total_price")
+//    private double totalPrice;
+//
+//    @ManyToOne(fetch = FetchType.LAZY)
+//    @JoinColumn(name = "user_id")
+//    private User user;
+//
+//    public CustomerOrder(String customerName, String customerPhoneNumber, String customerTableNumber,
+//                         List<MenuItem> orderItems, double totalPrice, User user) {
+//        this.customerName = customerName;
+//        this.customerPhoneNumber = customerPhoneNumber;
+//        this.customerTableNumber = customerTableNumber;
+//        this.orderItems = orderItems;
+//        this.totalPrice = totalPrice;
+//        this.user = user;
+//    }
+//}
+//
+
+
+package com.gourmet.main.entities;
+
+import java.util.List;
+
+import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Entity
+//@Data
+@Table(name = "customer_order")
+//@NoArgsConstructor
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+public class CustomerOrder {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "customer_name")
+    private String customerName;
+
+    @Column(name = "customer_phone_number")
+    private String customerPhoneNumber;
+
+    @Column(name = "customer_address")
+    private String customerAddress;
+
+    @ManyToMany
+    @JoinTable(name = "customer_order_with_order_items", 
+               joinColumns = @JoinColumn(name = "customer_order_id"), 
+               inverseJoinColumns = @JoinColumn(name = "order_items_id"))
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private List<MenuItem> orderItems;
+
+    @Column(name = "total_price")
+    private double totalPrice;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private User user;
+
+    public CustomerOrder(String customerName, String customerPhoneNumber, String customerAddress,
+                         List<MenuItem> orderItems, double totalPrice) {
+        this.customerName = customerName;
+        this.customerPhoneNumber = customerPhoneNumber;
+        this.customerAddress = customerAddress;
+        this.orderItems = orderItems;
+        this.totalPrice = totalPrice;
+    }
+
+	public CustomerOrder() {
+		super();
+		// TODO Auto-generated constructor stub
+	}
+
+	public Long getId() {
+		return id;
+	}
+
+	public void setId(Long id) {
+		this.id = id;
+	}
+
+	public String getCustomerName() {
+		return customerName;
+	}
+
+	public void setCustomerName(String customerName) {
+		this.customerName = customerName;
+	}
+
+	public String getCustomerPhoneNumber() {
+		return customerPhoneNumber;
+	}
+
+	public void setCustomerPhoneNumber(String customerPhoneNumber) {
+		this.customerPhoneNumber = customerPhoneNumber;
+	}
+
+	public String getCustomerAddress() {
+		return customerAddress;
+	}
+
+	public void setCustomerAddress(String customerAddress) {
+		this.customerAddress = customerAddress;
+	}
+
+	public List<MenuItem> getOrderItems() {
+		return orderItems;
+	}
+
+	public void setOrderItems(List<MenuItem> orderItems) {
+		this.orderItems = orderItems;
+	}
+
+	public double getTotalPrice() {
+		return totalPrice;
+	}
+
+	public void setTotalPrice(double totalPrice) {
+		this.totalPrice = totalPrice;
+	}
+
+	public User getUser() {
+		return user;
+	}
+
+	public void setUser(User user) {
+		this.user = user;
+	}
+    
+    
+}
+
+
+====================================================================================
+
+//package com.cts.main.entities;
+//
+//import jakarta.persistence.Column;
+//import jakarta.persistence.Entity;
+//import jakarta.persistence.GeneratedValue;
+//import jakarta.persistence.GenerationType;
+//import jakarta.persistence.Id;
+//import jakarta.persistence.Table;
+////import lombok.AllArgsConstructor;
+//import lombok.Data;
+//import lombok.NoArgsConstructor;
+//
+//@Entity
+//@Data
+////@AllArgsConstructor
+//@NoArgsConstructor
+//@Table(name = "menu_items")
+//public class MenuItem {
+//
+//	@Id
+//	@GeneratedValue(strategy = GenerationType.IDENTITY)
+//	@Column
+//	private Long id;
+//
+//	@Column(name = "food_name")
+//	private String foodName;
+//
+//	@Column(name = "food_price")
+//	private double foodPrice;
+//
+//	public MenuItem(String foodName, double foodPrice) {
+//		super();
+//		this.foodName = foodName;
+//		this.foodPrice = foodPrice;
+//	}
+//
+//	
+//}
+
+
+package com.gourmet.main.entities;
+
+import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Entity
+//@Data
+//@NoArgsConstructor
+@Table(name = "menu_items")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+public class MenuItem {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "food_name")
+    private String foodName;
+
+    @Column(name = "food_price")
+    private double foodPrice;
+
+    public MenuItem(String foodName, double foodPrice) {
+        this.foodName = foodName;
+        this.foodPrice = foodPrice;
+    }
+
+	public MenuItem() {
+		super();
+		// TODO Auto-generated constructor stub
+	}
+
+	public Long getId() {
+		return id;
+	}
+
+	public void setId(Long id) {
+		this.id = id;
+	}
+
+	public String getFoodName() {
+		return foodName;
+	}
+
+	public void setFoodName(String foodName) {
+		this.foodName = foodName;
+	}
+
+	public double getFoodPrice() {
+		return foodPrice;
+	}
+
+	public void setFoodPrice(double foodPrice) {
+		this.foodPrice = foodPrice;
+	}
+    
+    
+}
+
+
+====================================================================================
+package com.gourmet.main.entities;
+
+import jakarta.persistence.*;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Entity
+@Table(name = "user_details", uniqueConstraints = { @UniqueConstraint(columnNames = "username") })
+//@Data
+//@NoArgsConstructor
+public class User {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long user_id;
+
+    private String username;
+    private String password;
+    private String roles;
+
+    public User(String username, String password, String roles) {
+        this.username = username;
+        this.password = password;
+        this.roles = roles;
+    }
+
+	public User() {
+		super();
+		// TODO Auto-generated constructor stub
+	}
+
+	public Long getUser_id() {
+		return user_id;
+	}
+
+	public void setUser_id(Long user_id) {
+		this.user_id = user_id;
+	}
+
+	public String getUsername() {
+		return username;
+	}
+
+	public void setUsername(String username) {
+		this.username = username;
+	}
+
+	public String getPassword() {
+		return password;
+	}
+
+	public void setPassword(String password) {
+		this.password = password;
+	}
+
+	public String getRoles() {
+		return roles;
+	}
+
+	public void setRoles(String roles) {
+		this.roles = roles;
+	}
+    
+    
+}
+
+
+====================================================================================
+
+/*
+ * Copyright 2002-2024 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.springframework.http;
+
+import java.net.URI;
+import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
+
+import org.springframework.lang.Nullable;
+import org.springframework.util.Assert;
+import org.springframework.util.MultiValueMap;
+import org.springframework.util.ObjectUtils;
+
+/**
+ * Extension of {@link HttpEntity} that adds an {@link HttpStatusCode} status code.
+ * Used in {@code RestTemplate} as well as in {@code @Controller} methods.
+ *
+ * <p>In {@code RestTemplate}, this class is returned by
+ * {@link org.springframework.web.client.RestTemplate#getForEntity getForEntity()} and
+ * {@link org.springframework.web.client.RestTemplate#exchange exchange()}:
+ * <pre class="code">
+ * ResponseEntity&lt;String&gt; entity = template.getForEntity("https://example.com", String.class);
+ * String body = entity.getBody();
+ * MediaType contentType = entity.getHeaders().getContentType();
+ * HttpStatus statusCode = entity.getStatusCode();
+ * </pre>
+ *
+ * <p>This can also be used in Spring MVC as the return value from an
+ * {@code @Controller} method:
+ * <pre class="code">
+ * &#64;RequestMapping("/handle")
+ * public ResponseEntity&lt;String&gt; handle() {
+ *   URI location = ...;
+ *   HttpHeaders responseHeaders = new HttpHeaders();
+ *   responseHeaders.setLocation(location);
+ *   responseHeaders.set("MyResponseHeader", "MyValue");
+ *   return new ResponseEntity&lt;String&gt;("Hello World", responseHeaders, HttpStatus.CREATED);
+ * }
+ * </pre>
+ *
+ * Or, by using a builder accessible via static methods:
+ * <pre class="code">
+ * &#64;RequestMapping("/handle")
+ * public ResponseEntity&lt;String&gt; handle() {
+ *   URI location = ...;
+ *   return ResponseEntity.created(location).header("MyResponseHeader", "MyValue").body("Hello World");
+ * }
+ * </pre>
+ *
+ * @author Arjen Poutsma
+ * @author Brian Clozel
+ * @author Sebastien Deleuze
+ * @since 3.0.2
+ * @param <T> the body type
+ * @see #getStatusCode()
+ * @see org.springframework.web.client.RestOperations#getForEntity(String, Class, Object...)
+ * @see org.springframework.web.client.RestOperations#getForEntity(String, Class, java.util.Map)
+ * @see org.springframework.web.client.RestOperations#getForEntity(URI, Class)
+ * @see RequestEntity
+ */
+public class ResponseEntity<T> extends HttpEntity<T> {
+
+	private final HttpStatusCode status;
+
+
+	/**
+	 * Create a {@code ResponseEntity} with a status code only.
+	 * @param status the status code
+	 */
+	public ResponseEntity(HttpStatusCode status) {
+		this(null, null, status);
+	}
+
+	/**
+	 * Create a {@code ResponseEntity} with a body and status code.
+	 * @param body the entity body
+	 * @param status the status code
+	 */
+	public ResponseEntity(@Nullable T body, HttpStatusCode status) {
+		this(body, null, status);
+	}
+
+	/**
+	 * Create a {@code ResponseEntity} with headers and a status code.
+	 * @param headers the entity headers
+	 * @param status the status code
+	 */
+	public ResponseEntity(MultiValueMap<String, String> headers, HttpStatusCode status) {
+		this(null, headers, status);
+	}
+
+	/**
+	 * Create a {@code ResponseEntity} with a body, headers, and a raw status code.
+	 * @param body the entity body
+	 * @param headers the entity headers
+	 * @param rawStatus the status code value
+	 * @since 5.3.2
+	 */
+	public ResponseEntity(@Nullable T body, @Nullable MultiValueMap<String, String> headers, int rawStatus) {
+		this(body, headers, HttpStatusCode.valueOf(rawStatus));
+	}
+
+	/**
+	 * Create a {@code ResponseEntity} with a body, headers, and a status code.
+	 * @param body the entity body
+	 * @param headers the entity headers
+	 * @param statusCode the status code
+	 */
+	public ResponseEntity(@Nullable T body, @Nullable MultiValueMap<String, String> headers, HttpStatusCode statusCode) {
+		super(body, headers);
+		Assert.notNull(statusCode, "HttpStatusCode must not be null");
+
+		this.status = statusCode;
+	}
+
+
+	/**
+	 * Return the HTTP status code of the response.
+	 * @return the HTTP status as an HttpStatus enum entry
+	 */
+	public HttpStatusCode getStatusCode() {
+		return this.status;
+	}
+
+	/**
+	 * Return the HTTP status code of the response.
+	 * @return the HTTP status as an int value
+	 * @since 4.3
+	 * @deprecated as of 6.0, in favor of {@link #getStatusCode()}; scheduled
+	 * for removal in 7.0
+	 */
+	@Deprecated(since = "6.0")
+	public int getStatusCodeValue() {
+		return getStatusCode().value();
+	}
+
+
+	@Override
+	public boolean equals(@Nullable Object other) {
+		if (this == other) {
+			return true;
+		}
+		if (!super.equals(other)) {
+			return false;
+		}
+		return (other instanceof ResponseEntity<?> otherEntity && ObjectUtils.nullSafeEquals(this.status, otherEntity.status));
+	}
+
+	@Override
+	public int hashCode() {
+		return (29 * super.hashCode() + ObjectUtils.nullSafeHashCode(this.status));
+	}
+
+	@Override
+	public String toString() {
+		StringBuilder builder = new StringBuilder("<");
+		builder.append(this.status);
+		if (this.status instanceof HttpStatus httpStatus) {
+			builder.append(' ');
+			builder.append(httpStatus.getReasonPhrase());
+		}
+		builder.append(',');
+		T body = getBody();
+		HttpHeaders headers = getHeaders();
+		if (body != null) {
+			builder.append(body);
+			builder.append(',');
+		}
+		builder.append(headers);
+		builder.append('>');
+		return builder.toString();
+	}
+
+
+	// Static builder methods
+
+	/**
+	 * Create a builder with the given status.
+	 * @param status the response status
+	 * @return the created builder
+	 * @since 4.1
+	 */
+	public static BodyBuilder status(HttpStatusCode status) {
+		Assert.notNull(status, "HttpStatusCode must not be null");
+		return new DefaultBuilder(status);
+	}
+
+	/**
+	 * Create a builder with the given status.
+	 * @param status the response status
+	 * @return the created builder
+	 * @since 4.1
+	 */
+	public static BodyBuilder status(int status) {
+		return new DefaultBuilder(status);
+	}
+
+	/**
+	 * Create a builder with the status set to {@linkplain HttpStatus#OK OK}.
+	 * @return the created builder
+	 * @since 4.1
+	 */
+	public static BodyBuilder ok() {
+		return status(HttpStatus.OK);
+	}
+
+	/**
+	 * A shortcut for creating a {@code ResponseEntity} with the given body
+	 * and the status set to {@linkplain HttpStatus#OK OK}.
+	 * @param body the body of the response entity (possibly empty)
+	 * @return the created {@code ResponseEntity}
+	 * @since 4.1
+	 */
+	public static <T> ResponseEntity<T> ok(@Nullable T body) {
+		return ok().body(body);
+	}
+
+	/**
+	 * A shortcut for creating a {@code ResponseEntity} with the given body
+	 * and the {@linkplain HttpStatus#OK OK} status, or an empty body and a
+	 * {@linkplain HttpStatus#NOT_FOUND NOT FOUND} status in case of an
+	 * {@linkplain Optional#empty()} parameter.
+	 * @return the created {@code ResponseEntity}
+	 * @since 5.1
+	 */
+	public static <T> ResponseEntity<T> of(Optional<T> body) {
+		Assert.notNull(body, "Body must not be null");
+		return body.map(ResponseEntity::ok).orElseGet(() -> notFound().build());
+	}
+
+	/**
+	 * Create a new {@link HeadersBuilder} with its status set to
+	 * {@link ProblemDetail#getStatus()} and its body is set to
+	 * {@link ProblemDetail}.
+	 * <p><strong>Note:</strong> If there are no headers to add, there is usually
+	 * no need to create a {@link ResponseEntity} since {@code ProblemDetail}
+	 * is also supported as a return value from controller methods.
+	 * @param body the problem detail to use
+	 * @return the created builder
+	 * @since 6.0
+	 */
+	public static HeadersBuilder<?> of(ProblemDetail body) {
+		return new DefaultBuilder(body.getStatus()) {
+
+			@SuppressWarnings("unchecked")
+			@Override
+			public <T> ResponseEntity<T> build() {
+				return (ResponseEntity<T>) body(body);
+			}
+		};
+	}
+
+	/**
+	 * A shortcut for creating a {@code ResponseEntity} with the given body
+	 * and the {@linkplain HttpStatus#OK OK} status, or an empty body and a
+	 * {@linkplain HttpStatus#NOT_FOUND NOT FOUND} status in case of a
+	 * {@code null} parameter.
+	 * @return the created {@code ResponseEntity}
+	 * @since 6.0.5
+	 */
+	public static <T> ResponseEntity<T> ofNullable(@Nullable T body) {
+		if (body == null) {
+			return notFound().build();
+		}
+		return ResponseEntity.ok(body);
+	}
+
+	/**
+	 * Create a new builder with a {@linkplain HttpStatus#CREATED CREATED} status
+	 * and a location header set to the given URI.
+	 * @param location the location URI
+	 * @return the created builder
+	 * @since 4.1
+	 */
+	public static BodyBuilder created(URI location) {
+		return status(HttpStatus.CREATED).location(location);
+	}
+
+	/**
+	 * Create a builder with an {@linkplain HttpStatus#ACCEPTED ACCEPTED} status.
+	 * @return the created builder
+	 * @since 4.1
+	 */
+	public static BodyBuilder accepted() {
+		return status(HttpStatus.ACCEPTED);
+	}
+
+	/**
+	 * Create a builder with a {@linkplain HttpStatus#NO_CONTENT NO_CONTENT} status.
+	 * @return the created builder
+	 * @since 4.1
+	 */
+	public static HeadersBuilder<?> noContent() {
+		return status(HttpStatus.NO_CONTENT);
+	}
+
+	/**
+	 * Create a builder with a {@linkplain HttpStatus#BAD_REQUEST BAD_REQUEST} status.
+	 * @return the created builder
+	 * @since 4.1
+	 */
+	public static BodyBuilder badRequest() {
+		return status(HttpStatus.BAD_REQUEST);
+	}
+
+	/**
+	 * Create a builder with a {@linkplain HttpStatus#NOT_FOUND NOT_FOUND} status.
+	 * @return the created builder
+	 * @since 4.1
+	 */
+	public static HeadersBuilder<?> notFound() {
+		return status(HttpStatus.NOT_FOUND);
+	}
+
+	/**
+	 * Create a builder with an
+	 * {@linkplain HttpStatus#UNPROCESSABLE_ENTITY UNPROCESSABLE_ENTITY} status.
+	 * @return the created builder
+	 * @since 4.1.3
+	 */
+	public static BodyBuilder unprocessableEntity() {
+		return status(HttpStatus.UNPROCESSABLE_ENTITY);
+	}
+
+	/**
+	 * Create a builder with an
+	 * {@linkplain HttpStatus#INTERNAL_SERVER_ERROR INTERNAL_SERVER_ERROR} status.
+	 * @return the created builder
+	 * @since 5.3.8
+	 */
+	public static BodyBuilder internalServerError() {
+		return status(HttpStatus.INTERNAL_SERVER_ERROR);
+	}
+
+
+	/**
+	 * Defines a builder that adds headers to the response entity.
+	 * @since 4.1
+	 * @param <B> the builder subclass
+	 */
+	public interface HeadersBuilder<B extends HeadersBuilder<B>> {
+
+		/**
+		 * Add the given, single header value under the given name.
+		 * @param headerName the header name
+		 * @param headerValues the header value(s)
+		 * @return this builder
+		 * @see HttpHeaders#add(String, String)
+		 */
+		B header(String headerName, String... headerValues);
+
+		/**
+		 * Copy the given headers into the entity's headers map.
+		 * @param headers the existing HttpHeaders to copy from
+		 * @return this builder
+		 * @since 4.1.2
+		 * @see HttpHeaders#add(String, String)
+		 */
+		B headers(@Nullable HttpHeaders headers);
+
+		/**
+		 * Manipulate this entity's headers with the given consumer. The
+		 * headers provided to the consumer are "live", so that the consumer can be used to
+		 * {@linkplain HttpHeaders#set(String, String) overwrite} existing header values,
+		 * {@linkplain HttpHeaders#remove(Object) remove} values, or use any of the other
+		 * {@link HttpHeaders} methods.
+		 * @param headersConsumer a function that consumes the {@code HttpHeaders}
+		 * @return this builder
+		 * @since 5.2
+		 */
+		B headers(Consumer<HttpHeaders> headersConsumer);
+
+		/**
+		 * Set the set of allowed {@link HttpMethod HTTP methods}, as specified
+		 * by the {@code Allow} header.
+		 * @param allowedMethods the allowed methods
+		 * @return this builder
+		 * @see HttpHeaders#setAllow(Set)
+		 */
+		B allow(HttpMethod... allowedMethods);
+
+		/**
+		 * Set the entity tag of the body, as specified by the {@code ETag} header.
+		 * @param etag the new entity tag
+		 * @return this builder
+		 * @see HttpHeaders#setETag(String)
+		 */
+		B eTag(@Nullable String etag);
+
+		/**
+		 * Set the time the resource was last changed, as specified by the
+		 * {@code Last-Modified} header.
+		 * @param lastModified the last modified date
+		 * @return this builder
+		 * @since 5.1.4
+		 * @see HttpHeaders#setLastModified(ZonedDateTime)
+		 */
+		B lastModified(ZonedDateTime lastModified);
+
+		/**
+		 * Set the time the resource was last changed, as specified by the
+		 * {@code Last-Modified} header.
+		 * @param lastModified the last modified date
+		 * @return this builder
+		 * @since 5.1.4
+		 * @see HttpHeaders#setLastModified(Instant)
+		 */
+		B lastModified(Instant lastModified);
+
+		/**
+		 * Set the time the resource was last changed, as specified by the
+		 * {@code Last-Modified} header.
+		 * <p>The date should be specified as the number of milliseconds since
+		 * January 1, 1970 GMT.
+		 * @param lastModified the last modified date
+		 * @return this builder
+		 * @see HttpHeaders#setLastModified(long)
+		 */
+		B lastModified(long lastModified);
+
+		/**
+		 * Set the location of a resource, as specified by the {@code Location} header.
+		 * @param location the location
+		 * @return this builder
+		 * @see HttpHeaders#setLocation(URI)
+		 */
+		B location(URI location);
+
+		/**
+		 * Set the caching directives for the resource, as specified by the HTTP 1.1
+		 * {@code Cache-Control} header.
+		 * <p>A {@code CacheControl} instance can be built like
+		 * {@code CacheControl.maxAge(3600).cachePublic().noTransform()}.
+		 * @param cacheControl a builder for cache-related HTTP response headers
+		 * @return this builder
+		 * @since 4.2
+		 * @see <a href="https://tools.ietf.org/html/rfc7234#section-5.2">RFC-7234 Section 5.2</a>
+		 */
+		B cacheControl(CacheControl cacheControl);
+
+		/**
+		 * Configure one or more request header names (for example, "Accept-Language") to
+		 * add to the "Vary" response header to inform clients that the response is
+		 * subject to content negotiation and variances based on the value of the
+		 * given request headers. The configured request header names are added only
+		 * if not already present in the response "Vary" header.
+		 * @param requestHeaders request header names
+		 * @since 4.3
+		 */
+		B varyBy(String... requestHeaders);
+
+		/**
+		 * Build the response entity with no body.
+		 * @return the response entity
+		 * @see BodyBuilder#body(Object)
+		 */
+		<T> ResponseEntity<T> build();
+	}
+
+
+	/**
+	 * Defines a builder that adds a body to the response entity.
+	 * @since 4.1
+	 */
+	public interface BodyBuilder extends HeadersBuilder<BodyBuilder> {
+
+		/**
+		 * Set the length of the body in bytes, as specified by the
+		 * {@code Content-Length} header.
+		 * @param contentLength the content length
+		 * @return this builder
+		 * @see HttpHeaders#setContentLength(long)
+		 */
+		BodyBuilder contentLength(long contentLength);
+
+		/**
+		 * Set the {@linkplain MediaType media type} of the body, as specified by the
+		 * {@code Content-Type} header.
+		 * @param contentType the content type
+		 * @return this builder
+		 * @see HttpHeaders#setContentType(MediaType)
+		 */
+		BodyBuilder contentType(MediaType contentType);
+
+		/**
+		 * Set the body of the response entity and returns it.
+		 * @param <T> the type of the body
+		 * @param body the body of the response entity
+		 * @return the built response entity
+		 */
+		<T> ResponseEntity<T> body(@Nullable T body);
+	}
+
+
+	private static class DefaultBuilder implements BodyBuilder {
+
+		private final HttpStatusCode statusCode;
+
+		private final HttpHeaders headers = new HttpHeaders();
+
+
+		public DefaultBuilder(int statusCode) {
+			this(HttpStatusCode.valueOf(statusCode));
+		}
+
+		public DefaultBuilder(HttpStatusCode statusCode) {
+			this.statusCode = statusCode;
+		}
+
+
+		@Override
+		public BodyBuilder header(String headerName, String... headerValues) {
+			for (String headerValue : headerValues) {
+				this.headers.add(headerName, headerValue);
+			}
+			return this;
+		}
+
+		@Override
+		public BodyBuilder headers(@Nullable HttpHeaders headers) {
+			if (headers != null) {
+				this.headers.putAll(headers);
+			}
+			return this;
+		}
+
+		@Override
+		public BodyBuilder headers(Consumer<HttpHeaders> headersConsumer) {
+			headersConsumer.accept(this.headers);
+			return this;
+		}
+
+		@Override
+		public BodyBuilder allow(HttpMethod... allowedMethods) {
+			this.headers.setAllow(new LinkedHashSet<>(Arrays.asList(allowedMethods)));
+			return this;
+		}
+
+		@Override
+		public BodyBuilder contentLength(long contentLength) {
+			this.headers.setContentLength(contentLength);
+			return this;
+		}
+
+		@Override
+		public BodyBuilder contentType(MediaType contentType) {
+			this.headers.setContentType(contentType);
+			return this;
+		}
+
+		@Override
+		public BodyBuilder eTag(@Nullable String tag) {
+			this.headers.setETag(tag);
+			return this;
+		}
+
+		@Override
+		public BodyBuilder lastModified(ZonedDateTime date) {
+			this.headers.setLastModified(date);
+			return this;
+		}
+
+		@Override
+		public BodyBuilder lastModified(Instant date) {
+			this.headers.setLastModified(date);
+			return this;
+		}
+
+		@Override
+		public BodyBuilder lastModified(long date) {
+			this.headers.setLastModified(date);
+			return this;
+		}
+
+		@Override
+		public BodyBuilder location(URI location) {
+			this.headers.setLocation(location);
+			return this;
+		}
+
+		@Override
+		public BodyBuilder cacheControl(CacheControl cacheControl) {
+			this.headers.setCacheControl(cacheControl);
+			return this;
+		}
+
+		@Override
+		public BodyBuilder varyBy(String... requestHeaders) {
+			this.headers.setVary(Arrays.asList(requestHeaders));
+			return this;
+		}
+
+		@Override
+		public <T> ResponseEntity<T> build() {
+			return body(null);
+		}
+
+		@Override
+		public <T> ResponseEntity<T> body(@Nullable T body) {
+			return new ResponseEntity<>(body, this.headers, this.statusCode);
+		}
+	}
+
+}
+
+
+====================================================================================
+
+package com.gourmet.main.exceptions;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
+@ResponseStatus(HttpStatus.NOT_FOUND)
+public class UserNotFoundException extends RuntimeException {
+    public UserNotFoundException(String message) {
+        super(message);
+    }
+    public UserNotFoundException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}
+
+
+====================================================================================
+
+package com.gourmet.main.repository;
+
+import java.util.List;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.gourmet.main.entities.CustomerOrder;
+import com.gourmet.main.entities.User;
+
+public interface CustomerOrderRepository extends JpaRepository<CustomerOrder, Long>{
+
+	List<CustomerOrder> findByUser(User user);
+
+//	CustomerOrder findByUsername(String username);
+	
+}
+
+
+====================================================================================
+
+package com.gourmet.main.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.gourmet.main.entities.MenuItem;
+
+public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
+	
+}
+
+
+====================================================================================
+
+package com.gourmet.main.repository;
+
+import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.gourmet.main.entities.User;
+
+public interface UserRepository extends JpaRepository<User, Long> {
+
+	Optional<User> findByUsername(String usernameOrEmail);
+	boolean existsByUsername(String username);
+}
+
+
+====================================================================================
+
+package com.gourmet.main.responses;
+
+public class ApiResponse<T> {
+	private String status;
+	private T data;
+
+	public ApiResponse(String status, T data) {
+		this.status = status;
+		this.data = data;
+	}
+
+	public String getStatus() {
+		return status;
+	}
+
+	public void setStatus(String status) {
+		this.status = status;
+	}
+
+	public T getData() {
+		return data;
+	}
+
+	public void setData(T data) {
+		this.data = data;
+	}
+
+}
+
+====================================================================================
+package com.gourmet.main.services;
+
+import java.util.List;
+import java.util.Map;
+
+import com.gourmet.main.dtos.CustomerOrderDTO;
+import com.gourmet.main.entities.CustomerOrder;
+
+//public interface CustomerOrderService {
+//	
+//	public List<CustomerOrder> getAllOrders();
+//	
+//	public CustomerOrder getOrderById(Long id);
+//	
+//	public CustomerOrder createOrder(CustomerOrder order);
+//	
+//	public CustomerOrder updateOrderById(Long id, CustomerOrder order);
+//	
+//	void deleteOrder(Long id);
+//}
+public interface CustomerOrderService {
+	List<CustomerOrder> getAllOrders();
+
+	CustomerOrder getOrderById(Long id);
+
+	CustomerOrder createOrder(CustomerOrderDTO orderDTO);
+
+	CustomerOrder updateOrderById(Long id, CustomerOrderDTO orderDTO);
+
+	void deleteOrder(Long id);
+
+	List<Map<String, Object>> getAllOrdersForCooks();
+
+	List<CustomerOrder> getOrdersByUsername(String username);
+
+//	CustomerOrder getOrderByUserName(String username);
+}
+
+====================================================================================
+package com.gourmet.main.services;
+
+import java.util.List;
+
+import com.gourmet.main.dtos.MenuItemDTO;
+import com.gourmet.main.entities.MenuItem;
+
+public interface MenuItemService {
+    MenuItem addFoodItem(MenuItemDTO menuItemDTO);
+    List<MenuItem> getAllItems();
+    MenuItem updateFoodItemById(Long id, MenuItemDTO menuItemDTO);
+    void deleteFoodItemById(Long id);
+}
+
+====================================================================================
+//package com.cts.main.services;
+//
+//import java.util.List;
+//
+//import org.springframework.http.ResponseEntity;
+//
+//import com.cts.main.entities.User;
+//
+//public interface UserService {
+//
+//	User adduser(User user);
+//
+//	List<User> getuser();
+//	ResponseEntity<String> updateuser(User user);
+//
+//}
+
+package com.gourmet.main.services;
+
+import java.util.List;
+
+import org.springframework.http.ResponseEntity;
+
+import com.gourmet.main.dtos.UserDTO;
+import com.gourmet.main.entities.User;
+import com.gourmet.main.responses.ApiResponse;
+
+public interface UserService {
+	ResponseEntity<?> adduser(UserDTO userDTO);
+
+	List<User> getuser();
+
+	ResponseEntity<ApiResponse<User>> updateuser(UserDTO userDTO);
+}
+
+====================================================================================
+//
+//
+//
+//package com.cts.main.servicesImpl;
+//
+//import java.util.List;
+//
+//import org.springframework.beans.factory.annotation.Autowired;
+//import org.springframework.stereotype.Service;
+//
+//import com.cts.main.dtos.CustomerOrderDTO;
+//import com.cts.main.entities.CustomerOrder;
+//import com.cts.main.entities.MenuItem;
+//import com.cts.main.repository.CustomerOrderRepository;
+//import com.cts.main.repository.MenuItemRepository;
+//import com.cts.main.services.CustomerOrderService;
+//
+//@Service
+//public class CustomerOrderServiceImpl implements CustomerOrderService {
+//
+//    @Autowired
+//    private CustomerOrderRepository customerOrderRepository;
+//
+//    @Autowired
+//    private MenuItemRepository menuItemRepository;
+//
+//    @Override
+//    public List<CustomerOrder> getAllOrders() {
+//        return customerOrderRepository.findAll();
+//    }
+//
+//    @Override
+//    public CustomerOrder getOrderById(Long id) {
+//        return customerOrderRepository.findById(id)
+//            .orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
+//    }
+//
+//    @Override
+//    public CustomerOrder createOrder(CustomerOrderDTO orderDTO) {
+//        List<MenuItem> menuItems = menuItemRepository.findAllById(orderDTO.getOrderItems());
+//
+//        double totalPrice = menuItems.stream().mapToDouble(MenuItem::getFoodPrice).sum();
+//
+//        CustomerOrder order = new CustomerOrder();
+//        order.setCustomerName(orderDTO.getCustomerName());
+//        order.setCustomerPhoneNumber(orderDTO.getCustomerPhoneNumber());
+//        order.setCustomerTableNumber(orderDTO.getCustomerTableNumber());
+//        order.setOrderItems(menuItems);
+//        order.setTotalPrice(totalPrice);
+//
+//        return customerOrderRepository.save(order);
+//    }
+//
+//    @Override
+//    public CustomerOrder updateOrderById(Long id, CustomerOrderDTO orderDTO) {
+//        CustomerOrder existingOrder = customerOrderRepository.findById(id)
+//            .orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
+//
+//        List<MenuItem> menuItems = menuItemRepository.findAllById(orderDTO.getOrderItems());
+//
+//        double totalPrice = menuItems.stream().mapToDouble(MenuItem::getFoodPrice).sum();
+//
+//        existingOrder.setCustomerName(orderDTO.getCustomerName());
+//        existingOrder.setCustomerPhoneNumber(orderDTO.getCustomerPhoneNumber());
+//        existingOrder.setCustomerTableNumber(orderDTO.getCustomerTableNumber());
+//        existingOrder.setOrderItems(menuItems);
+//        existingOrder.setTotalPrice(totalPrice);
+//
+//        return customerOrderRepository.save(existingOrder);
+//    }
+//
+//    @Override
+//    public void deleteOrder(Long id) {
+//        CustomerOrder order = customerOrderRepository.findById(id)
+//            .orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
+//        customerOrderRepository.delete(order);
+//    }
+//}
+
+//package com.cts.main.servicesImpl;
+//
+//import java.util.LinkedHashMap;
+//import java.util.List;
+//import java.util.Map;
+//import java.util.stream.Collectors;
+//
+//import org.springframework.beans.factory.annotation.Autowired;
+//import org.springframework.security.core.context.SecurityContextHolder;
+//import org.springframework.security.core.userdetails.UserDetails;
+//import org.springframework.stereotype.Service;
+//
+//import com.cts.main.dtos.CustomerOrderDTO;
+//import com.cts.main.entities.CustomerOrder;
+//import com.cts.main.entities.MenuItem;
+//import com.cts.main.entities.User;
+//import com.cts.main.repository.CustomerOrderRepository;
+//import com.cts.main.repository.MenuItemRepository;
+//import com.cts.main.repository.UserRepository;
+//import com.cts.main.services.CustomerOrderService;
+//
+//@Service
+//public class CustomerOrderServiceImpl implements CustomerOrderService {
+//
+//	@Autowired
+//	private CustomerOrderRepository customerOrderRepository;
+//
+//	@Autowired
+//	private MenuItemRepository menuItemRepository;
+//
+//	@Autowired
+//	private UserRepository userRepository;
+//
+//	@Override
+//	public CustomerOrder getOrderById(Long id) {
+//		CustomerOrder order = customerOrderRepository.findById(id)
+//				.orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
+//
+//		if (!isAdmin() && !order.getUser().getUsername().equals(getCurrentUsername())) {
+//			throw new RuntimeException("You do not have permission to view this order");
+//		}
+//		return order;
+//	}
+//
+//	@Override
+//	public CustomerOrder createOrder(CustomerOrderDTO orderDTO) {
+//		List<MenuItem> menuItems = menuItemRepository.findAllById(orderDTO.getOrderItems());
+//		double totalPrice = menuItems.stream().mapToDouble(MenuItem::getFoodPrice).sum();
+//
+//		CustomerOrder order = new CustomerOrder();
+//		order.setCustomerName(orderDTO.getCustomerName());
+//		order.setCustomerPhoneNumber(orderDTO.getCustomerPhoneNumber());
+//		order.setCustomerTableNumber(orderDTO.getCustomerTableNumber());
+//		order.setOrderItems(menuItems);
+//		order.setTotalPrice(totalPrice);
+//
+//		User user = getCurrentUser();
+//		order.setUser(user);
+//
+//		return customerOrderRepository.save(order);
+//	}
+//
+//	@Override
+//	public CustomerOrder updateOrderById(Long id, CustomerOrderDTO orderDTO) {
+//		CustomerOrder existingOrder = customerOrderRepository.findById(id)
+//				.orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
+//
+//		if (!isAdmin() && !existingOrder.getUser().getUsername().equals(getCurrentUsername())) {
+//			throw new RuntimeException("You do not have permission to edit this order");
+//		}
+//
+//		List<MenuItem> menuItems = menuItemRepository.findAllById(orderDTO.getOrderItems());
+//		double totalPrice = menuItems.stream().mapToDouble(MenuItem::getFoodPrice).sum();
+//
+//		existingOrder.setCustomerName(orderDTO.getCustomerName());
+//		existingOrder.setCustomerPhoneNumber(orderDTO.getCustomerPhoneNumber());
+//		existingOrder.setCustomerTableNumber(orderDTO.getCustomerTableNumber());
+//		existingOrder.setOrderItems(menuItems);
+//		existingOrder.setTotalPrice(totalPrice);
+//
+//		return customerOrderRepository.save(existingOrder);
+//	}
+//
+//	@Override
+//	public void deleteOrder(Long id) {
+//		CustomerOrder order = customerOrderRepository.findById(id)
+//				.orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
+//		customerOrderRepository.delete(order);
+//	}
+//
+//	private String getCurrentUsername() {
+//		Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+//		if (principal instanceof UserDetails) {
+//			return ((UserDetails) principal).getUsername();
+//		} else {
+//			return principal.toString();
+//		}
+//	}
+//
+//	private boolean isAdmin() {
+//		Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+//		if (principal instanceof UserDetails) {
+//			UserDetails userDetails = (UserDetails) principal;
+//			return userDetails.getAuthorities().stream()
+//					.anyMatch(grantedAuthority -> "ROLE_ADMIN".equals(grantedAuthority.getAuthority()));
+//		}
+//		return false;
+//	}
+//
+//	private User getCurrentUser() {
+//		return userRepository.findByUsername(getCurrentUsername())
+//				.orElseThrow(() -> new RuntimeException("User not found: " + getCurrentUsername()));
+//	}
+//
+//	@Override
+//	public List<CustomerOrder> getAllOrders() {
+//		return customerOrderRepository.findAll();
+//	}
+//
+//	@Override
+//	public List<Map<String, Object>> getAllOrdersForCooks() {
+//
+//		List<CustomerOrder> orders = customerOrderRepository.findAll();
+//		return orders.stream().map(order -> {
+//			Map<String, Object> orderMap = new LinkedHashMap<>();
+//			orderMap.put("id", order.getId());
+//			orderMap.put("customerName", order.getCustomerName());
+//			orderMap.put("customerTableNumber", order.getCustomerTableNumber());
+//			orderMap.put("orderItems", order.getOrderItems().stream().map(item -> {
+//				Map<String, Object> itemMap = new LinkedHashMap<>();
+//				itemMap.put("id", item.getId());
+//				itemMap.put("foodName", item.getFoodName());
+//				return itemMap;
+//			}).collect(Collectors.toList()));
+//			return orderMap;
+//		}).collect(Collectors.toList());
+//	}
+//}
+
+package com.gourmet.main.servicesImpl;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+
+import com.gourmet.main.dtos.CustomerOrderDTO;
+import com.gourmet.main.entities.CustomerOrder;
+import com.gourmet.main.entities.MenuItem;
+import com.gourmet.main.entities.User;
+import com.gourmet.main.repository.CustomerOrderRepository;
+import com.gourmet.main.repository.MenuItemRepository;
+import com.gourmet.main.repository.UserRepository;
+import com.gourmet.main.services.CustomerOrderService;
+
+@Service
+public class CustomerOrderServiceImpl implements CustomerOrderService {
+
+    @Autowired
+    private CustomerOrderRepository customerOrderRepository;
+    
+    @Autowired
+    private MenuItemRepository menuItemRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Override
+    public CustomerOrder getOrderById(Long id) {
+        CustomerOrder order = customerOrderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
+
+        if (!isAdmin() && !order.getUser().getUsername().equals(getCurrentUsername())) {
+            throw new RuntimeException("You do not have permission to view this order");
+        }
+        return order;
+    }
+    
+//    @Override
+//    public CustomerOrder getOrderByUserName(String username) {
+//    	CustomerOrder order = customerOrderRepository.findByUsername(username);
+//    	  if (order != null) {
+//    		    return order;
+//    		  } else {
+//    		    throw new RuntimeException("Order not found for username: " + username);
+//    		  }
+//    		}
+    
+    public List<CustomerOrder> getOrdersByUsername(String username) {
+        Optional<User> user = userRepository.findByUsername(username);
+        if (user.isPresent()) {
+            return customerOrderRepository.findByUser(user.get());
+        } else {
+            throw new RuntimeException("User not found with username: " + username);
+        }
+    }
+
+    @Override
+    public CustomerOrder createOrder(CustomerOrderDTO orderDTO) {
+        validateOrderItems(orderDTO.getOrderItems());
+
+        List<MenuItem> menuItems = menuItemRepository.findAllById(orderDTO.getOrderItems().keySet());
+
+        List<MenuItem> orderItems = orderDTO.getOrderItems().entrySet().stream()
+            .flatMap(entry -> {
+                MenuItem menuItem = menuItems.stream()
+                    .filter(item -> item.getId().equals(entry.getKey()))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("MenuItem not found with id: " + entry.getKey()));
+                return java.util.stream.Stream.generate(() -> menuItem).limit(entry.getValue());
+            })
+            .collect(Collectors.toList());
+
+        double totalPrice = orderItems.stream().mapToDouble(MenuItem::getFoodPrice).sum();
+
+        CustomerOrder order = new CustomerOrder();
+        order.setCustomerName(orderDTO.getCustomerName());
+        order.setCustomerPhoneNumber(orderDTO.getCustomerPhoneNumber());
+        order.setCustomerAddress(orderDTO.getCustomerAddress());
+        order.setOrderItems(orderItems);
+        order.setTotalPrice(totalPrice);
+
+        User user = getCurrentUser();
+        order.setUser(user);
+
+        return customerOrderRepository.save(order);
+    }
+
+    @Override
+    public CustomerOrder updateOrderById(Long id, CustomerOrderDTO orderDTO) {
+        validateOrderItems(orderDTO.getOrderItems());
+
+        CustomerOrder existingOrder = customerOrderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
+
+        if (!isAdmin() && !existingOrder.getUser().getUsername().equals(getCurrentUsername())) {
+            throw new RuntimeException("You do not have permission to edit this order");
+        }
+
+        List<MenuItem> menuItems = menuItemRepository.findAllById(orderDTO.getOrderItems().keySet());
+
+        List<MenuItem> orderItems = orderDTO.getOrderItems().entrySet().stream()
+            .flatMap(entry -> {
+                MenuItem menuItem = menuItems.stream()
+                    .filter(item -> item.getId().equals(entry.getKey()))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("MenuItem not found with id: " + entry.getKey()));
+                return java.util.stream.Stream.generate(() -> menuItem).limit(entry.getValue());
+            })
+            .collect(Collectors.toList());
+
+        double totalPrice = orderItems.stream().mapToDouble(MenuItem::getFoodPrice).sum();
+
+        existingOrder.setCustomerName(orderDTO.getCustomerName());
+        existingOrder.setCustomerPhoneNumber(orderDTO.getCustomerPhoneNumber());
+        existingOrder.setCustomerAddress(orderDTO.getCustomerAddress());
+        existingOrder.setOrderItems(orderItems);
+        existingOrder.setTotalPrice(totalPrice);
+
+        return customerOrderRepository.save(existingOrder);
+    }
+
+    @Override
+    public void deleteOrder(Long id) {
+        CustomerOrder order = customerOrderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
+        customerOrderRepository.delete(order);
+    }
+
+    private String getCurrentUsername() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof UserDetails) {
+            return ((UserDetails) principal).getUsername();
+        } else {
+            return principal.toString();
+        }
+    }
+
+    private boolean isAdmin() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof UserDetails) {
+            UserDetails userDetails = (UserDetails) principal;
+            return userDetails.getAuthorities().stream()
+                    .anyMatch(grantedAuthority -> "ROLE_ADMIN".equals(grantedAuthority.getAuthority()));
+        }
+        return false;
+    }
+
+    private User getCurrentUser() {
+        return userRepository.findByUsername(getCurrentUsername())
+                .orElseThrow(() -> new RuntimeException("User not found: " + getCurrentUsername()));
+    }
+
+    @Override
+    public List<CustomerOrder> getAllOrders() {
+        return customerOrderRepository.findAll();
+    }
+
+    @Override
+    public List<Map<String, Object>> getAllOrdersForCooks() {
+        List<CustomerOrder> orders = customerOrderRepository.findAll();
+        return orders.stream().map(order -> {
+            Map<String, Object> orderMap = new LinkedHashMap<>();
+            orderMap.put("id", order.getId());
+            orderMap.put("customerName", order.getCustomerName());
+            orderMap.put("customerTableNumber", order.getCustomerAddress());
+            
+            
+            orderMap.put("orderItems", order.getOrderItems().stream()
+                .collect(Collectors.groupingBy(MenuItem::getId))
+                .entrySet().stream().map(entry -> {
+                	
+                    Map<String, Object> itemMap = new LinkedHashMap<>();
+                    itemMap.put("id", entry.getKey());
+                    itemMap.put("foodName", entry.getValue().get(0).getFoodName());
+                    itemMap.put("quantity", entry.getValue().size());
+                    return itemMap;
+                    
+                    
+                }).collect(Collectors.toList()));
+            return orderMap;
+        }).collect(Collectors.toList());
+    }
+
+    private void validateOrderItems(Map<Long, Integer> orderItems) {
+        for (Map.Entry<Long, Integer> entry : orderItems.entrySet()) {
+            if (entry.getValue() > 5) {
+                throw new IllegalArgumentException("Quantity for item ID " + entry.getKey() + " exceeds the maximum allowed limit of 5");
+            }
+        }
+    }
+}
+
+====================================================================================
+package com.gourmet.main.servicesImpl;
+
+import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.gourmet.main.dtos.MenuItemDTO;
+import com.gourmet.main.entities.MenuItem;
+import com.gourmet.main.repository.MenuItemRepository;
+import com.gourmet.main.services.MenuItemService;
+
+@Service
+public class MenuItemServiceImpl implements MenuItemService {
+
+    @Autowired
+    private MenuItemRepository menuItemRepository;
+
+    @Override
+    public MenuItem addFoodItem(MenuItemDTO menuItemDTO) {
+        MenuItem menuItem = new MenuItem(menuItemDTO.getFoodName(), menuItemDTO.getFoodPrice());
+        return menuItemRepository.save(menuItem);
+    }
+
+    @Override
+    public List<MenuItem> getAllItems() {
+        return menuItemRepository.findAll();
+    }
+
+    @Override
+    public MenuItem updateFoodItemById(Long id, MenuItemDTO menuItemDTO) {
+        MenuItem existingItem = menuItemRepository.findById(id).orElseThrow(() -> new RuntimeException("Item not found"));
+        existingItem.setFoodName(menuItemDTO.getFoodName());
+        existingItem.setFoodPrice(menuItemDTO.getFoodPrice());
+        return menuItemRepository.save(existingItem);
+    }
+
+    @Override
+    public void deleteFoodItemById(Long id) {
+    	menuItemRepository.findById(id).orElseThrow(() -> new RuntimeException("Item not found"));
+        menuItemRepository.deleteById(id);
+    }
+}
+
+====================================================================================
+//package com.cts.main.servicesImpl;
+//
+//import java.util.List;
+//
+//import org.springframework.beans.factory.annotation.Autowired;
+//import org.springframework.http.HttpStatus;
+//import org.springframework.http.ResponseEntity;
+//import org.springframework.security.crypto.password.PasswordEncoder;
+//import org.springframework.stereotype.Service;
+//
+//import com.cts.main.entities.User;
+//import com.cts.main.repository.UserRepository;
+//import com.cts.main.services.UserService;
+//
+//@Service
+//public class UserServiceImpl implements UserService {
+//
+//	@Autowired
+//	private UserRepository userRepository;
+//	
+//	@Autowired
+//	private PasswordEncoder password;
+//	
+//	@Override
+//	public User adduser(User user) {
+//		// TODO Auto-generated method stub
+//		user.setPassword(password.encode(user.getPassword()));
+//		return userRepository.save(user);
+//	}
+//	
+//	@Override
+//	public List<User> getuser() {
+//		return userRepository.findAll();
+//	}
+//
+//	@Override
+//	public ResponseEntity<String> updateuser(User user) {
+////		User user1 =User.builder()
+////				.username(user.getUsername())
+////				.password(password.encode(user.getPassword()))
+////				.Roles(user.getRoles())
+////				.build();
+//		if(userRepository.existsById(user.getUser_id())) {
+//			userRepository.save(user);
+//		}
+//		return ResponseEntity.status(HttpStatus.OK).body("User updated successfully");
+//	}
+//
+//}
+
+package com.gourmet.main.servicesImpl;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import com.gourmet.main.dtos.UserDTO;
+import com.gourmet.main.entities.User;
+import com.gourmet.main.repository.UserRepository;
+import com.gourmet.main.responses.ApiResponse;
+import com.gourmet.main.services.UserService;
+
+@Service
+public class UserServiceImpl implements UserService {
+
+	@Autowired
+	private UserRepository userRepository;
+
+	@Autowired
+	private PasswordEncoder passwordEncoder;
+
+	@Override
+	public ResponseEntity<?> adduser(UserDTO userDTO) {
+		try {
+			// Check if the username already exists
+			if (userRepository.existsByUsername(userDTO.getUsername())) {
+				return ResponseEntity.status(HttpStatus.CONFLICT)
+						.body(new ApiResponse<>("Username already exists! Try different.", null));
+			}
+			// Proceed with saving the new user if username is unique
+			User user = new User(userDTO.getUsername(), passwordEncoder.encode(userDTO.getPassword()),
+					userDTO.getRoles());
+			// save in DB
+			User createdUser = userRepository.save(user);
+
+			return ResponseEntity.status(HttpStatus.CREATED)
+					.body(new ApiResponse<>("User created successfully", createdUser));
+		} catch (DataIntegrityViolationException ex) {
+			return ResponseEntity.status(HttpStatus.CONFLICT)
+					.body(new ApiResponse<>("Username already exists! Try different.", null));
+		}
+	}
+
+	@Override
+	public List<User> getuser() {
+		return userRepository.findAll();
+	}
+
+//	@Override
+//	public ResponseEntity<String> updateuser(UserDTO userDTO) {
+//
+//		// finding user by user id. If not found call else statement
+//		Optional<User> optionalUser = userRepository.findById(userDTO.getUser_id());
+//		if (optionalUser.isPresent()) {
+//			User user = optionalUser.get();
+//
+//			// Check if the new username already exists and is not the current user's
+//			// username
+//			if (!user.getUsername().equals(userDTO.getUsername())
+//					&& userRepository.existsByUsername(userDTO.getUsername())) {
+//				return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already exists! Try different.");
+//			}
+//			user.setUsername(userDTO.getUsername());
+//			user.setPassword(passwordEncoder.encode(userDTO.getPassword()));
+//			user.setRoles(userDTO.getRoles());
+//			userRepository.save(user);
+//			return ResponseEntity.status(HttpStatus.OK).body("User updated successfully!");
+//		} else {
+//			return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found!");
+//		}
+//	}
+
+	@Override
+	public ResponseEntity<ApiResponse<User>> updateuser(UserDTO userDTO) {
+		Optional<User> optionalUser = userRepository.findById(userDTO.getUser_id());
+		if (optionalUser.isPresent()) {
+			User user = optionalUser.get();
+			if (!user.getUsername().equals(userDTO.getUsername())
+					&& userRepository.existsByUsername(userDTO.getUsername())) {
+				return ResponseEntity.status(HttpStatus.CONFLICT)
+						.body(new ApiResponse<>("Username already exists! Try different.", null));
+			}
+			user.setUsername(userDTO.getUsername());
+			user.setPassword(passwordEncoder.encode(userDTO.getPassword()));
+			user.setRoles(userDTO.getRoles());
+			userRepository.save(user);
+			return ResponseEntity.status(HttpStatus.OK).body(new ApiResponse<>("User updated successfully!", user));
+		} else {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>("User not found!", null));
+		}
+	}
+}
+
+====================================================================================
+package com.gourmet.main.util;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
+
+@Service
+public class JwtUtil {
+
+    private String SECRET_KEY = "secret"; // In production, make this complex
+
+    public String extractUsername(String token) {
+        return extractClaim(token, Claims::getSubject);
+    }
+
+    public Date extractExpiration(String token) {
+        return extractClaim(token, Claims::getExpiration);
+    }
+
+    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        final Claims claims = extractAllClaims(token);
+        return claimsResolver.apply(claims);
+    }
+    
+    // OLDER VERSION SYNTAX (Fixes parserBuilder error)
+    private Claims extractAllClaims(String token) {
+        return Jwts.parser().setSigningKey(SECRET_KEY).parseClaimsJws(token).getBody();
+    }
+
+    private Boolean isTokenExpired(String token) {
+        return extractExpiration(token).before(new Date());
+    }
+
+    // UPDATED: Now accepts username and role directly
+    public String generateToken(String username, String role) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("role", role); // Store role inside token
+        return createToken(claims, username);
+    }
+
+    // OLDER VERSION SYNTAX (Fixes signWith error)
+    private String createToken(Map<String, Object> claims, String subject) {
+        return Jwts.builder()
+                .setClaims(claims)
+                .setSubject(subject)
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 5)) // 5 min
+                .signWith(SignatureAlgorithm.HS256, SECRET_KEY)
+                .compact();
+    }
+
+    public Boolean validateToken(String token) { // Simplified validation
+        return !isTokenExpired(token); 
+    }
+}
+====================================================================================
+spring.application.name=SpringBootRestfullWs
+
+# H2 Database Configuration
+spring.datasource.url=jdbc:h2:mem:restaurantdb
+spring.datasource.driver-class-name=org.h2.Driver
+spring.datasource.username=sa
+spring.datasource.password=
+
+# JPA / Hibernate
+spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
+spring.jpa.hibernate.ddl-auto=create-drop
+spring.jpa.show-sql=true
+
+# H2 Console (optional but very useful)
+spring.h2.console.enabled=true
+spring.h2.console.path=/h2-console
+
+# Server
+server.port=8082
+
+# Logging
+logging.level.org.springframework.security=DEBUG
+logging.level.com.gourmet.main=DEBUG
+
+====================================================================================
+====================================================================================
